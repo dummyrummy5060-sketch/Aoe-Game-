@@ -1,0 +1,3362 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>عصر الإمبراطوريات: النهضة - Pixel RTS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #140f0a;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #f5e6c8;
+        }
+        .aoe-panel {
+            background: linear-gradient(180deg, #2d2116 0%, #1a130c 100%);
+            border: 2px solid #a6823e;
+            box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.85), 0 4px 12px rgba(0, 0, 0, 0.75);
+        }
+        .aoe-btn {
+            background: linear-gradient(180deg, #4e3a27 0%, #2c1f14 100%);
+            border: 1.5px solid #ba9147;
+            color: #faeed7;
+            transition: transform 0.1s ease, background 0.15s ease, border-color 0.15s ease;
+            box-shadow: inset 0 1px 0 rgba(255, 236, 185, 0.25), 0 2px 4px rgba(0, 0, 0, 0.65);
+            cursor: pointer;
+        }
+        .aoe-btn:hover:not(:disabled) {
+            background: linear-gradient(180deg, #694e34 0%, #3d2b1b 100%);
+            border-color: #ffd479;
+            transform: translateY(-1px);
+        }
+        .aoe-btn:active:not(:disabled) {
+            transform: translateY(1px);
+        }
+        .aoe-btn:disabled {
+            opacity: 0.42;
+            cursor: not-allowed;
+            filter: grayscale(0.7);
+        }
+        .aoe-card-selected {
+            border-color: #ffd479 !important;
+            background: linear-gradient(180deg, #63482b 0%, #382716 100%) !important;
+            box-shadow: 0 0 14px rgba(255, 212, 121, 0.45) !important;
+        }
+        canvas {
+            display: block;
+            touch-action: none;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+        html, body { overscroll-behavior: none; }
+        button { touch-action: manipulation; }
+        @media (max-width: 700px) {
+            #gameUI > .aoe-panel:first-child { gap: 5px; padding: 5px 6px; }
+            #gameUI > .aoe-panel:first-child .aoe-btn { min-height: 38px; padding: 6px 8px; font-size: 12px; }
+            #gameUI .grid-cols-12 { gap: 5px; padding: 5px; }
+            #gameUI .col-span-7, #gameUI .col-span-5 { min-height: 112px; padding: 6px; }
+            #actionGrid { grid-template-columns: repeat(4,minmax(0,1fr)); gap: 5px; max-height: 100px; }
+            #actionGrid button { min-height: 42px; font-size: 11px; padding: 4px 2px; }
+            #selectionInfo { font-size: 11px; }
+            #minimapCanvas { min-height: 76px; }
+        }
+        @media (max-width: 430px) {
+            #enemyInfoDisplay { display: none; }
+            #gameUI > .aoe-panel:first-child .flex.items-center.gap-1\.5 { gap: 3px; }
+            #gameUI .col-span-7 { grid-column: span 7 / span 7; }
+            #gameUI .col-span-5 { grid-column: span 5 / span 5; }
+        }
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1a130d;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #8c6b32;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body class="relative w-screen h-screen overflow-hidden">
+
+    <!-- ==================== قائمة البداية وإعداد المعركة ==================== -->
+    <div id="startMenu" class="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-3 overflow-y-auto">
+        <div class="aoe-panel rounded-xl max-w-4xl w-full p-5 md:p-7 my-auto border-2 border-amber-500 shadow-2xl">
+            <div class="text-center mb-5 border-b border-amber-700/50 pb-4">
+                <div class="text-amber-400 text-xs md:text-sm tracking-wider font-bold mb-1">⚔️ لعبة استراتيجية بالبكسل في الوقت الحقيقي ⚔️</div>
+                <h1 class="text-3xl md:text-5xl font-black text-amber-300 drop-shadow">
+                    عصر الإمبراطوريات: النهضة
+                </h1>
+                <p class="text-amber-100/80 text-xs md:text-sm mt-1.5">ابنِ قريتك، اجمع الموارد، تطوّر عبر 4 عصور، وقُد جيوش البكسل للنصر!</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
+                <!-- اختيار الخريطة -->
+                <div>
+                    <h2 class="text-amber-300 font-bold text-base mb-2.5 flex items-center gap-2">
+                        <span>🗺️</span> اختر ساحة المعركة (تنوع الخرائط):
+                    </h2>
+                    <div id="mapChoices" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <button type="button" data-map="oasis" class="map-choice aoe-btn aoe-card-selected p-3 rounded-lg text-right">
+                            <div class="font-bold text-amber-300 text-sm">🌴 الواحة الخضراء</div>
+                            <div class="text-[11px] text-amber-100/80 mt-1">سهول عشبية متوازنة، غابات كثيفة وثمار وفيرة.</div>
+                        </button>
+                        <button type="button" data-map="desert" class="map-choice aoe-btn p-3 rounded-lg text-right">
+                            <div class="font-bold text-amber-300 text-sm">🏜️ الصحراء القاحلة</div>
+                            <div class="text-[11px] text-amber-100/80 mt-1">أخشاب حول الواحات ومناجم ذهب غنية جداً.</div>
+                        </button>
+                        <button type="button" data-map="snow" class="map-choice aoe-btn p-3 rounded-lg text-right">
+                            <div class="font-bold text-amber-300 text-sm">🏔️ الجبال الثلجية</div>
+                            <div class="text-[11px] text-amber-100/80 mt-1">تضاريس شتوية مع وفرة في الحجر والذهب وأشجار الصنوبر.</div>
+                        </button>
+                        <button type="button" data-map="islands" class="map-choice aoe-btn p-3 rounded-lg text-right">
+                            <div class="font-bold text-amber-300 text-sm">🌊 الجزر النهرية</div>
+                            <div class="text-[11px] text-amber-100/80 mt-1">قنوات مائية تفصل القواعد وجسور عبور استراتيجية.</div>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- اختيار العدو والصعوبة -->
+                <div class="flex flex-col justify-between">
+                    <div>
+                        <h2 class="text-amber-300 font-bold text-base mb-2.5 flex items-center gap-2">
+                            <span>🛡️</span> اختر الحضارة المعادية:
+                        </h2>
+                        <div id="factionChoices" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                            <button type="button" data-faction="mongols" class="faction-choice aoe-btn aoe-card-selected p-3 rounded-lg text-right">
+                                <div class="font-bold text-red-400 text-sm">🐎 المغول (غارات سريعة)</div>
+                                <div class="text-[11px] text-amber-100/80 mt-1">هجمات مبكرة بالفرسان الخفيفة ورماة السهام.</div>
+                            </button>
+                            <button type="button" data-faction="romans" class="faction-choice aoe-btn p-3 rounded-lg text-right">
+                                <div class="font-bold text-red-400 text-sm">🏛️ الرومان (دفاع حصين)</div>
+                                <div class="text-[11px] text-amber-100/80 mt-1">أبراج مراقبة ومشاة مدرعون وتشكيلات منظمة.</div>
+                            </button>
+                            <button type="button" data-faction="crusaders" class="faction-choice aoe-btn p-3 rounded-lg text-right">
+                                <div class="font-bold text-red-400 text-sm">⚔️ الصليبيون (توسع متوازن)</div>
+                                <div class="text-[11px] text-amber-100/80 mt-1">توازن بين الفرسان والرماة وآلات الحصار.</div>
+                            </button>
+                            <button type="button" data-faction="mamluks" class="faction-choice aoe-btn p-3 rounded-lg text-right">
+                                <div class="font-bold text-red-400 text-sm">👑 المماليك (نخبة الفرسان)</div>
+                                <div class="text-[11px] text-amber-100/80 mt-1">فرسان مدرعون أقوياء ورماة متطورون.</div>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="mt-4">
+                        <h3 class="text-amber-300 font-bold text-sm mb-2">⚙️ مستوى الذكاء الاصطناعي:</h3>
+                        <div id="difficultyChoices" class="grid grid-cols-3 gap-2">
+                            <button type="button" data-diff="easy" class="diff-choice aoe-btn py-2 px-3 rounded-lg text-xs font-bold">سهل</button>
+                            <button type="button" data-diff="medium" class="diff-choice aoe-btn aoe-card-selected py-2 px-3 rounded-lg text-xs font-bold">متوسط</button>
+                            <button type="button" data-diff="hard" class="diff-choice aoe-btn py-2 px-3 rounded-lg text-xs font-bold">صعب (ملحمي)</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-black/45 border border-amber-800/60 rounded-lg p-3 mb-5 text-xs text-amber-100/90 grid grid-cols-1 md:grid-cols-3 gap-2">
+                <div>📱 <b>التحديد:</b> المس الوحدة لتحديدها، واسحب بإصبعك لتحريك الخريطة.</div>
+                <div>🎯 <b>الأوامر:</b> فعّل زر «أمر» ثم المس المكان للتحرك أو الجمع أو الهجوم.</div>
+                <div>🐑 <b>الحياة البرية:</b> اجمع الطعام من الأغنام والغزلان والخنازير والأبقار. &nbsp; ⚖️ <b>التفوق:</b> الرمّاح يهزم الفارس ➔ الفارس يهزم الرامي ➔ الرامي يهزم المشاة.</div>
+            </div>
+
+            <div class="text-center">
+                <button type="button" id="loadFromMenuBtn" class="aoe-btn px-6 py-3.5 rounded-xl text-base md:text-lg font-black text-emerald-300 border-2 border-emerald-500 shadow-lg ml-2">
+                    📂 تحميل لعبة محفوظة
+                </button>
+                <button type="button" id="startGameBtn" class="aoe-btn px-10 py-3.5 rounded-xl text-lg md:text-xl font-black text-amber-300 border-2 border-amber-400 shadow-lg">
+                    ⚔️ ابدأ المعركة الآن ⚔️
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== شاشة نهاية المعركة ==================== -->
+    <div id="endModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4">
+        <div class="aoe-panel rounded-xl max-w-md w-full p-6 text-center border-2 border-amber-400">
+            <div id="endIcon" class="text-6xl mb-3">🏆</div>
+            <h2 id="endTitle" class="text-3xl font-bold text-amber-300 mb-2">انتصار ساحق!</h2>
+            <p id="endDesc" class="text-amber-100/90 text-sm mb-4">لقد دمرت قاعدة العدو وانتصرت في المعركة.</p>
+            <div id="endStats" class="bg-black/45 rounded-lg p-3 mb-5 text-xs text-amber-200 space-y-1.5"></div>
+            <button type="button" id="restartBtn" class="aoe-btn px-8 py-3 rounded-lg font-bold text-base text-amber-300 border-amber-400">
+                🔄 معركة جديدة
+            </button>
+        </div>
+    </div>
+
+    <!-- ==================== واجهة اللعب الرئيسية (HUD) ==================== -->
+    <div id="gameUI" class="hidden fixed inset-0 flex flex-col justify-between pointer-events-none z-10">
+        
+        <!-- الشريط العلوي -->
+        <div class="aoe-panel pointer-events-auto px-2 py-1.5 md:px-4 md:py-2 flex flex-wrap items-center justify-between gap-2 border-t-0 border-x-0">
+            <!-- الموارد -->
+            <div class="flex items-center gap-1.5 md:gap-3 text-xs md:text-sm font-bold flex-wrap">
+                <div class="flex items-center gap-1 bg-black/45 px-2 py-1 rounded border border-amber-800/60" title="الخشب">
+                    <span>🪵</span><span id="resWood" class="text-amber-200">220</span>
+                </div>
+                <div class="flex items-center gap-1 bg-black/45 px-2 py-1 rounded border border-amber-800/60" title="الطعام">
+                    <span>🍖</span><span id="resFood" class="text-rose-300">220</span>
+                </div>
+                <div class="flex items-center gap-1 bg-black/45 px-2 py-1 rounded border border-amber-800/60" title="الذهب">
+                    <span>🪙</span><span id="resGold" class="text-yellow-300">120</span>
+                </div>
+                <div class="flex items-center gap-1 bg-black/45 px-2 py-1 rounded border border-amber-800/60" title="الحجر">
+                    <span>🪨</span><span id="resStone" class="text-slate-300">120</span>
+                </div>
+                <div class="flex items-center gap-1 bg-black/45 px-2 py-1 rounded border border-amber-800/60" title="السكان">
+                    <span>👥</span><span id="resPop" class="text-emerald-300">5/10</span>
+                </div>
+            </div>
+
+            <!-- العصر ومعلومات العدو -->
+            <div class="flex items-center gap-2">
+                <div class="bg-amber-950/90 border border-amber-500/70 px-3 py-1 rounded-full text-xs md:text-sm font-bold text-amber-300">
+                    🏛️ <span id="ageDisplay">العصر المظلم</span>
+                </div>
+                <div class="hidden lg:flex items-center gap-1.5 text-xs text-red-300 bg-red-950/60 border border-red-800/60 px-2.5 py-1 rounded">
+                    <span>العدو:</span>
+                    <span id="enemyInfoDisplay" class="font-bold">المغول</span>
+                </div>
+            </div>
+
+            <!-- أزرار التحكم السريعة -->
+            <div class="flex items-center gap-1.5">
+                <button type="button" id="idleVillagerBtn" class="aoe-btn px-2.5 py-1 rounded text-xs font-bold flex items-center gap-1" title="تحديد عامل عاطل">
+                    <span>👷</span><span id="idleVillagerCount">0</span>
+                </button>
+                <button type="button" id="tcFocusBtn" class="aoe-btn px-2.5 py-1 rounded text-xs font-bold" title="الانتقال إلى مركز المدينة (H)">
+                    🏰 المركز
+                </button>
+                <button type="button" id="actionModeBtn" class="aoe-btn px-2.5 py-1 rounded text-xs font-bold border-emerald-500 text-emerald-300" title="تبديل وضع النقر بين التحديد وإصدار الأوامر">
+                    👆 تحديد
+                </button>
+                <button type="button" id="pauseBtn" class="aoe-btn px-2.5 py-1 rounded text-xs font-bold" title="إيقاف مؤقت / استئناف">
+                    ⏸️
+                </button>
+                <button type="button" id="saveMenuBtn" class="aoe-btn px-2.5 py-1 rounded text-xs font-bold" title="حفظ / تحميل اللعبة">
+                    💾
+                </button>
+                <button type="button" id="soundToggleBtn" class="aoe-btn px-2.5 py-1 rounded text-xs font-bold" title="الصوت">
+                    🔊
+                </button>
+            </div>
+        </div>
+
+        <!-- الإشعارات العائمة -->
+        <div id="toastContainer" class="fixed top-14 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-1.5 pointer-events-none w-max max-w-[92vw]"></div>
+
+        <!-- الشريط السفلي -->
+        <div class="mt-auto pointer-events-auto grid grid-cols-12 gap-1.5 p-1.5 md:p-2 bg-gradient-to-t from-black/95 via-black/65 to-transparent">
+            
+            <!-- شبكة الأوامر والبناء والتدريب -->
+            <div class="aoe-panel rounded-lg col-span-7 md:col-span-5 p-2 flex flex-col justify-between min-h-[125px] md:min-h-[145px]">
+                <div class="flex items-center justify-between border-b border-amber-800/50 pb-1 mb-1.5">
+                    <span id="actionPanelTitle" class="text-xs font-bold text-amber-300">الأوامر المتاحة</span>
+                    <span id="tooltipText" class="text-[11px] text-amber-100/80 truncate max-w-[65%]">اختر عاملاً أو مبنى</span>
+                </div>
+                <div id="actionGrid" class="grid grid-cols-4 sm:grid-cols-5 gap-1.5 overflow-y-auto max-h-[105px]"></div>
+            </div>
+
+            <!-- معلومات العنصر المحدد -->
+            <div class="aoe-panel rounded-lg col-span-5 md:col-span-4 p-2 flex flex-col justify-between min-h-[125px] md:min-h-[145px]">
+                <div id="selectionInfo" class="h-full flex flex-col justify-between">
+                    <div class="text-center text-amber-200/60 text-xs my-auto">
+                        انقر على عامل لبناء المباني أو جمع الموارد، أو انقر على مركز المدينة لتدريب العمال.
+                    </div>
+                </div>
+            </div>
+
+            <!-- الخريطة المصغرة -->
+            <div class="aoe-panel rounded-lg col-span-12 md:col-span-3 p-1.5 flex items-center justify-center relative min-h-[110px] md:min-h-[145px]">
+                <canvas id="minimapCanvas" class="rounded border border-amber-700/70 cursor-pointer w-full h-full max-h-[132px]"></canvas>
+                <div class="absolute bottom-2 right-2.5 text-[10px] text-amber-200/80 bg-black/70 px-1.5 rounded pointer-events-none">
+                    الخريطة المصغرة
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+
+    <!-- ==================== نافذة الحفظ والتحميل ==================== -->
+    <div id="saveModal" class="hidden fixed inset-0 z-[60] flex items-center justify-center bg-black/85 p-3">
+        <div class="aoe-panel rounded-xl max-w-md w-full p-4 border-2 border-amber-400 max-h-[92vh] overflow-y-auto">
+            <div class="flex items-center justify-between mb-3 border-b border-amber-700/50 pb-2">
+                <h2 class="text-xl font-black text-amber-300">💾 حفظ وتحميل اللعبة</h2>
+                <button type="button" id="saveCloseBtn" class="aoe-btn px-3 py-1 rounded font-bold">✖</button>
+            </div>
+            <div id="saveSlots" class="space-y-2"></div>
+            <div class="mt-3 flex items-center justify-between text-xs text-amber-100/80">
+                <label class="flex items-center gap-2"><input type="checkbox" id="autoSaveChk" checked> حفظ تلقائي كل دقيقة</label>
+                <button type="button" id="exportSaveBtn" class="aoe-btn px-2 py-1 rounded font-bold">📤 نسخ كود الحفظ</button>
+            </div>
+            <div class="mt-2 text-xs text-amber-100/80 flex gap-2">
+                <input id="importSaveInput" class="flex-1 bg-black/50 border border-amber-700/60 rounded px-2 py-1 text-amber-100" placeholder="الصق كود الحفظ هنا للاستيراد">
+                <button type="button" id="importSaveBtn" class="aoe-btn px-2 py-1 rounded font-bold">📥 استيراد</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- كانفاس اللعبة الرئيسي -->
+    <canvas id="gameCanvas" class="fixed inset-0 z-0"></canvas>
+
+<script>
+window.addEventListener('DOMContentLoaded', () => {
+    'use strict';
+
+    // ==================== 1. نظام الصوت التوليدي الآمن ====================
+    class SoundEngine {
+        constructor() {
+            this.ctx = null;
+            this.muted = false;
+        }
+        init() {
+            try {
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    if (AudioCtx) this.ctx = new AudioCtx();
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume().catch(() => {});
+                }
+            } catch (e) {}
+        }
+        playTone(freq, type, duration, vol = 0.06, slideTo = null) {
+            if (this.muted || !this.ctx) return;
+            try {
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, now);
+                if (slideTo) {
+                    osc.frequency.exponentialRampToValueAtTime(slideTo, now + duration);
+                }
+                gain.gain.setValueAtTime(vol, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + duration);
+            } catch (e) {}
+        }
+        playSelect() { this.playTone(540, 'sine', 0.07, 0.05, 700); }
+        playCommand() { this.playTone(390, 'triangle', 0.08, 0.05, 490); }
+        playBuild() { this.playTone(170, 'square', 0.1, 0.05, 115); }
+        playSword() { this.playTone(290, 'sawtooth', 0.11, 0.05, 95); }
+        playArrow() { this.playTone(760, 'triangle', 0.1, 0.04, 340); }
+        playExplosion() { this.playTone(115, 'sawtooth', 0.3, 0.1, 35); }
+        playGather() { this.playTone(440, 'sine', 0.05, 0.03, 520); }
+        playAlert() {
+            this.playTone(440, 'sawtooth', 0.14, 0.07);
+            setTimeout(() => this.playTone(349, 'sawtooth', 0.22, 0.07), 150);
+        }
+        playAgeUp() {
+            [261.6, 329.6, 392.0, 523.25].forEach((n, i) => {
+                setTimeout(() => this.playTone(n, 'triangle', 0.25, 0.08), i * 110);
+            });
+        }
+    }
+    const sound = new SoundEngine();
+
+    // ==================== 2. محرك رسم فن البكسل (Pixel Art Sprite Engine) ====================
+    class PixelArtEngine {
+        constructor() {
+            this.cache = new Map();
+            this.basePalette = {
+                '.': null,
+                'K': '#14100d', // حدود داكنة
+                'S': '#f1c27d', // بشرة فاتحة
+                's': '#c68642', // بشرة مظللة
+                'H': '#e2e8f0', // معدن لامع
+                'h': '#94a3b8', // معدن متوسط
+                'd': '#475569', // معدن داكن
+                'W': '#b45309', // خشب فاتح
+                'w': '#78350f', // خشب داكن
+                'Y': '#fde047', // قش / ذهب
+                'y': '#ca8a04', // ذهب مظلل
+                'B': '#854d0e', // بني / حصان
+                'b': '#5c330a', // بني داكن
+                'L': '#fef3c7', // أبيض عاجي
+                'R': '#ef4444', // أحمر / نار
+                'O': '#f97316', // برتقالي
+                'G': '#22c55e', // أخضر
+                'g': '#15803d'  // أخضر داكن
+            };
+            this.sprites = this.defineSprites();
+        }
+
+        getTeamPalette(owner, factionKey) {
+            if (owner === 0) {
+                return { 'T': '#3b82f6', 't': '#1d4ed8', 'C': '#93c5fd' };
+            }
+            const enemyColors = {
+                mongols:   { 'T': '#dc2626', 't': '#991b1b', 'C': '#fca5a5' },
+                romans:    { 'T': '#b91c1c', 't': '#7f1d1d', 'C': '#facc15' },
+                crusaders: { 'T': '#e11d48', 't': '#9f1239', 'C': '#f8fafc' },
+                mamluks:   { 'T': '#d97706', 't': '#92400e', 'C': '#fef08a' }
+            };
+            return enemyColors[factionKey] || { 'T': '#ef4444', 't': '#991b1b', 'C': '#fca5a5' };
+        }
+
+        defineSprites() {
+            return {
+                // 1. القروي / العامل
+                villager: {
+                    w: 16, h: 16, scale: 2.2,
+                    frames: {
+                        idle: [
+                            "....KKKKKK......",
+                            "...KYYYYYYK.....",
+                            "..KYYYYyyyyK....",
+                            "...KKKKKKKK.....",
+                            "....KSSSSK......",
+                            "....KSKSSK......",
+                            "...KTTTTTTK.....",
+                            "..KSTTTTTTSK..KK",
+                            "..KSTttttTSK.KHK",
+                            "..KSKTTTTKSKKWWK",
+                            "...KKttttKKWWKK.",
+                            "....KbbbbKWWK...",
+                            "....KbKKbK......",
+                            "....Kb..bK......",
+                            "...KKb..bKK.....",
+                            "................"
+                        ],
+                        walk1: [
+                            "....KKKKKK......",
+                            "...KYYYYYYK.....",
+                            "..KYYYYyyyyK....",
+                            "...KKKKKKKK.....",
+                            "....KSSSSK......",
+                            "....KSKSSK......",
+                            "...KTTTTTTK.....",
+                            "..KSTTTTTTSK..KK",
+                            "..KSTttttTSK.KHK",
+                            "...KKTTTTKK.KWWK",
+                            "....KttttK.KWWK.",
+                            "....KbbbbK.WWK..",
+                            "...KbK..KbK.....",
+                            "..KbK....KbK....",
+                            ".KKK......KKK...",
+                            "................"
+                        ],
+                        walk2: [
+                            "....KKKKKK......",
+                            "...KYYYYYYK.....",
+                            "..KYYYYyyyyK....",
+                            "...KKKKKKKK.....",
+                            "....KSSSSK......",
+                            "....KSKSSK......",
+                            "...KTTTTTTK.....",
+                            "..KSTTTTTTSK..KK",
+                            "..KSTttttTSK.KHK",
+                            "...KKTTTTKK.KWWK",
+                            "....KttttK.KWWK.",
+                            "....KbbbbK.WWK..",
+                            ".....KbKbK......",
+                            "....Kb..Kb......",
+                            "....KK..KK......",
+                            "................"
+                        ],
+                        action: [
+                            ".........KKKK...",
+                            "........KHHHHK..",
+                            "....KKKKKHHhhK..",
+                            "...KYYYYYYKKWK..",
+                            "..KYYYYyyyyWWK..",
+                            "...KKKKKKKKWK...",
+                            "....KSSSSKWWK...",
+                            "....KSKSSKSK....",
+                            "...KTTTTTTK.....",
+                            "..KSTTTTTTSK....",
+                            "...KKttttKK.....",
+                            "....KbbbbK......",
+                            "...KbK..KbK.....",
+                            "...KK....KK.....",
+                            "................",
+                            "................"
+                        ]
+                    }
+                },
+                // 2. حامل الرمح (الرمّاح)
+                spearman: {
+                    w: 18, h: 16, scale: 2.25,
+                    frames: {
+                        idle: [
+                            ".............KK...",
+                            "....KKKK....KHHK..",
+                            "...KHHHHK...KhhK..",
+                            "...KHhhHK....KK...",
+                            "....KSSK....KWWK..",
+                            "....KSKS....KWWK..",
+                            "...KTTTTK...KWWK..",
+                            "..KWWTTTTK..KWWK..",
+                            ".KWyWTTTTKSKKWWK..",
+                            ".KWyWttttTSKKWWK..",
+                            ".KWWKttttKK.KWWK..",
+                            "..KK.KbbK...KWWK..",
+                            "....Kb..bK..KWWK..",
+                            "....Kb..bK..KWWK..",
+                            "...KKb..bKK.KWWK..",
+                            ".............KK..."
+                        ],
+                        walk1: [
+                            ".............KK...",
+                            "....KKKK....KHHK..",
+                            "...KHHHHK...KhhK..",
+                            "...KHhhHK....KK...",
+                            "....KSSK....KWWK..",
+                            "....KSKS....KWWK..",
+                            "...KTTTTK...KWWK..",
+                            "..KWWTTTTK..KWWK..",
+                            ".KWyWTTTTKSKKWWK..",
+                            ".KWyWttttTSKKWWK..",
+                            ".KWWKttttKK.KWWK..",
+                            "..KK.KbbK...KWWK..",
+                            "...KbK..KbK.KWWK..",
+                            "..KbK....KbKKWWK..",
+                            ".KKK......KKKKK...",
+                            ".................."
+                        ],
+                        walk2: [
+                            ".............KK...",
+                            "....KKKK....KHHK..",
+                            "...KHHHHK...KhhK..",
+                            "...KHhhHK....KK...",
+                            "....KSSK....KWWK..",
+                            "....KSKS....KWWK..",
+                            "...KTTTTK...KWWK..",
+                            "..KWWTTTTK..KWWK..",
+                            ".KWyWTTTTKSKKWWK..",
+                            ".KWyWttttTSKKWWK..",
+                            ".KWWKttttKK.KWWK..",
+                            "..KK.KbbK...KWWK..",
+                            "....KbKbK...KWWK..",
+                            "...Kb..Kb...KWWK..",
+                            "...KK..KK....KK...",
+                            ".................."
+                        ],
+                        action: [
+                            "....KKKK..........",
+                            "...KHHHHK.........",
+                            "...KHhhHK.........",
+                            "....KSSK..........",
+                            "....KSKS..........",
+                            "...KTTTTK.........",
+                            "..KWWTTTTKKKKKK...",
+                            ".KWyWTTTTWWWWWHHK.",
+                            ".KWyWttttWWWWWhhK.",
+                            ".KWWKttttKKKKKK...",
+                            "..KK.KbbK.........",
+                            "...KbK..KbK.......",
+                            "..KbK....KbK......",
+                            ".KKK......KKK.....",
+                            "..................",
+                            ".................."
+                        ]
+                    }
+                },
+                // 3. المبارز
+                swordsman: {
+                    w: 18, h: 16, scale: 2.3,
+                    frames: {
+                        idle: [
+                            "....KKKKKK......",
+                            "...KHHHHHHK...KK",
+                            "...KHdHHdHK..KHH",
+                            "...KHHHHHHK..KHH",
+                            "....KhhhhK...Khh",
+                            "...KHHHHHHK..Khh",
+                            "..KHHHTTHHHK.Kyy",
+                            ".KHHHTtttTHHSKWW",
+                            ".KHHTttttTTHSKKK",
+                            ".KHHHTtttTHHK...",
+                            "..KHHHTTHHHK....",
+                            "...KKKKKKKK.....",
+                            "....Kh..hK......",
+                            "....Kh..hK......",
+                            "...KKd..dKK.....",
+                            "................"
+                        ],
+                        walk1: [
+                            "....KKKKKK......",
+                            "...KHHHHHHK...KK",
+                            "...KHdHHdHK..KHH",
+                            "...KHHHHHHK..KHH",
+                            "....KhhhhK...Khh",
+                            "...KHHHHHHK..Khh",
+                            "..KHHHTTHHHK.Kyy",
+                            ".KHHHTtttTHHSKWW",
+                            ".KHHTttttTTHSKKK",
+                            ".KHHHTtttTHHK...",
+                            "..KHHHTTHHHK....",
+                            "...KKKKKKKK.....",
+                            "...KhK..KhK.....",
+                            "..KdK....KdK....",
+                            ".KKK......KKK...",
+                            "................"
+                        ],
+                        walk2: [
+                            "....KKKKKK......",
+                            "...KHHHHHHK...KK",
+                            "...KHdHHdHK..KHH",
+                            "...KHHHHHHK..KHH",
+                            "....KhhhhK...Khh",
+                            "...KHHHHHHK..Khh",
+                            "..KHHHTTHHHK.Kyy",
+                            ".KHHHTtttTHHSKWW",
+                            ".KHHTttttTTHSKKK",
+                            ".KHHHTtttTHHK...",
+                            "..KHHHTTHHHK....",
+                            "...KKKKKKKK.....",
+                            "....KhKhK.......",
+                            "...Kd..Kd.......",
+                            "...KK..KK.......",
+                            "................"
+                        ],
+                        action: [
+                            "....KKKKKK........",
+                            "...KHHHHHHK.......",
+                            "...KHdHHdHK.......",
+                            "...KHHHHHHK.......",
+                            "....KhhhhK........",
+                            "...KHHHHHHK.......",
+                            "..KHHHTTHHHKKKKKK.",
+                            ".KHHHTtttTHHyyHHHH",
+                            ".KHHTttttTTHWWKhhh",
+                            ".KHHHTtttTHHKKKKKK",
+                            "..KHHHTTHHHK......",
+                            "...KKKKKKKK.......",
+                            "...KhK..KhK.......",
+                            "..KdK....KdK......",
+                            ".KKK......KKK.....",
+                            ".................."
+                        ]
+                    }
+                },
+                // 4. رامي السهام
+                archer: {
+                    w: 16, h: 16, scale: 2.2,
+                    frames: {
+                        idle: [
+                            "....KKKKKK......",
+                            "...KTTTTTTK.....",
+                            "..KTtTTTTtTK....",
+                            "..KTKSSSSKTK....",
+                            "...KSSKSSSK.....",
+                            "....KssssK......",
+                            "...KTTTTTTK.KK..",
+                            "..KSTttttTSKWWK.",
+                            "..KSTttttTSKLWK.",
+                            "...KKttttKK.LWK.",
+                            "....KbbbbK..LWK.",
+                            "....Kb..bK..LWK.",
+                            "....Kb..bK.KWWK.",
+                            "...KKb..bKK.KK..",
+                            "................",
+                            "................"
+                        ],
+                        walk1: [
+                            "....KKKKKK......",
+                            "...KTTTTTTK.....",
+                            "..KTtTTTTtTK....",
+                            "..KTKSSSSKTK....",
+                            "...KSSKSSSK.....",
+                            "....KssssK......",
+                            "...KTTTTTTK.KK..",
+                            "..KSTttttTSKWWK.",
+                            "..KSTttttTSKLWK.",
+                            "...KKttttKK.LWK.",
+                            "....KbbbbK..LWK.",
+                            "...KbK..KbK.LWK.",
+                            "..KbK....KbKWWK.",
+                            ".KKK......KKKK..",
+                            "................",
+                            "................"
+                        ],
+                        walk2: [
+                            "....KKKKKK......",
+                            "...KTTTTTTK.....",
+                            "..KTtTTTTtTK....",
+                            "..KTKSSSSKTK....",
+                            "...KSSKSSSK.....",
+                            "....KssssK......",
+                            "...KTTTTTTK.KK..",
+                            "..KSTttttTSKWWK.",
+                            "..KSTttttTSKLWK.",
+                            "...KKttttKK.LWK.",
+                            "....KbbbbK..LWK.",
+                            ".....KbKbK..LWK.",
+                            "....Kb..Kb.KWWK.",
+                            "....KK..KK..KK..",
+                            "................",
+                            "................"
+                        ],
+                        action: [
+                            "....KKKKKK......",
+                            "...KTTTTTTK.....",
+                            "..KTtTTTTtTK....",
+                            "..KTKSSSSKTK....",
+                            "...KSSKSSSK.KK..",
+                            "....KssssK.KWWK.",
+                            "...KTTTTTTKLWWK.",
+                            "..KSSSSSSSKLWWWH",
+                            "..KSTttttTKLWWK.",
+                            "...KKttttKKKWWK.",
+                            "....KbbbbK..KK..",
+                            "...KbK..KbK.....",
+                            "..KbK....KbK....",
+                            ".KKK......KKK...",
+                            "................",
+                            "................"
+                        ]
+                    }
+                },
+                // 5. رامي النشاب
+                crossbow: {
+                    w: 16, h: 16, scale: 2.25,
+                    frames: {
+                        idle: [
+                            "....KKKKKK......",
+                            "...KHHHHHHK.....",
+                            "..KHHddddHHK....",
+                            "...KSSKSSSK.....",
+                            "....KssssK......",
+                            "...KTTTTTTK.....",
+                            "..KHTttttTHK..KK",
+                            "..KHTttttTHSWWHK",
+                            "...KKttttKKKWWKK",
+                            "....KbbbbK..KK..",
+                            "....Kb..bK......",
+                            "....Kb..bK......",
+                            "...KKb..bKK.....",
+                            "................",
+                            "................",
+                            "................"
+                        ],
+                        walk1: [
+                            "....KKKKKK......",
+                            "...KHHHHHHK.....",
+                            "..KHHddddHHK....",
+                            "...KSSKSSSK.....",
+                            "....KssssK......",
+                            "...KTTTTTTK.....",
+                            "..KHTttttTHK..KK",
+                            "..KHTttttTHSWWHK",
+                            "...KKttttKKKWWKK",
+                            "....KbbbbK..KK..",
+                            "...KbK..KbK.....",
+                            "..KbK....KbK....",
+                            ".KKK......KKK...",
+                            "................",
+                            "................",
+                            "................"
+                        ],
+                        walk2: [
+                            "....KKKKKK......",
+                            "...KHHHHHHK.....",
+                            "..KHHddddHHK....",
+                            "...KSSKSSSK.....",
+                            "....KssssK......",
+                            "...KTTTTTTK.....",
+                            "..KHTttttTHK..KK",
+                            "..KHTttttTHSWWHK",
+                            "...KKttttKKKWWKK",
+                            "....KbbbbK..KK..",
+                            ".....KbKbK......",
+                            "....Kb..Kb......",
+                            "....KK..KK......",
+                            "................",
+                            "................",
+                            "................"
+                        ],
+                        action: [
+                            "....KKKKKK......",
+                            "...KHHHHHHK.....",
+                            "..KHHddddHHK....",
+                            "...KSSKSSSK.....",
+                            "....KssssK...KK.",
+                            "...KTTTTTTK.KHHK",
+                            "..KHTttttTHSWWHH",
+                            "..KHTttttTHKWWKK",
+                            "...KKttttKK.KHHK",
+                            "....KbbbbK...KK.",
+                            "...KbK..KbK.....",
+                            "..KbK....KbK....",
+                            ".KKK......KKK...",
+                            "................",
+                            "................",
+                            "................"
+                        ]
+                    }
+                },
+                // 6. الفارس الخفيف
+                lightCav: {
+                    w: 22, h: 16, scale: 2.25,
+                    frames: {
+                        idle: [
+                            ".......KKKK...........",
+                            "......KTTTTK..........",
+                            "......KSSKSK..........",
+                            ".....KTTTTTTK.........",
+                            "....KSTttttTSK..KKKK..",
+                            "....KSKttttKSK.KBBBBK.",
+                            "..KKKKKbbbbKKKKKBBLBBK",
+                            ".KBBBBBBBBBBBBBBBBBbbK",
+                            "KbbBBBBTTTTBBBBBBBBbbK",
+                            "KbKBBBBttttBBBBBBBBKK.",
+                            "Kb.KBBBBbbbbBBBBBBK...",
+                            "KK..KbbKKKKKKKKbbK....",
+                            "....KbK........KbK....",
+                            "....KbK........KbK....",
+                            "...KKbK.......KKbK....",
+                            "......................"
+                        ],
+                        walk1: [
+                            ".......KKKK...........",
+                            "......KTTTTK..........",
+                            "......KSSKSK..........",
+                            ".....KTTTTTTK.........",
+                            "....KSTttttTSK..KKKK..",
+                            "....KSKttttKSK.KBBBBK.",
+                            "..KKKKKbbbbKKKKKBBLBBK",
+                            ".KBBBBBBBBBBBBBBBBBbbK",
+                            "KbbBBBBTTTTBBBBBBBBbbK",
+                            "KbKBBBBttttBBBBBBBBKK.",
+                            "Kb.KBBBBbbbbBBBBBBK...",
+                            "KK.KbKKKKKKKKKK..KbK..",
+                            "..KbK..........Kb..KbK",
+                            ".KbK............KK..KK",
+                            ".KK...................",
+                            "......................"
+                        ],
+                        walk2: [
+                            ".......KKKK...........",
+                            "......KTTTTK..........",
+                            "......KSSKSK..........",
+                            ".....KTTTTTTK.........",
+                            "....KSTttttTSK..KKKK..",
+                            "....KSKttttKSK.KBBBBK.",
+                            "..KKKKKbbbbKKKKKBBLBBK",
+                            ".KBBBBBBBBBBBBBBBBBbbK",
+                            "KbbBBBBTTTTBBBBBBBBbbK",
+                            "KbKBBBBttttBBBBBBBBKK.",
+                            "Kb.KBBBBbbbbBBBBBBK...",
+                            "KK..KbKKKKKKKKbbK.....",
+                            ".....KbK....KbK.......",
+                            "......KK....KK........",
+                            "......................",
+                            "......................"
+                        ],
+                        action: [
+                            ".......KKKK...........",
+                            "......KTTTTK..........",
+                            "......KSSKSK..........",
+                            ".....KTTTTTTK.........",
+                            "....KSTttttTSKKKKKK...",
+                            "....KSKttttKSWWWWWHHK.",
+                            "..KKKKKbbbbKKKKKBBLBBK",
+                            ".KBBBBBBBBBBBBBBBBBbbK",
+                            "KbbBBBBTTTTBBBBBBBBbbK",
+                            "KbKBBBBttttBBBBBBBBKK.",
+                            "Kb.KBBBBbbbbBBBBBBK...",
+                            "KK.KbKKKKKKKKKK..KbK..",
+                            "..KbK..........Kb..KbK",
+                            ".KbK............KK..KK",
+                            "......................",
+                            "......................"
+                        ]
+                    }
+                },
+                // 7. الفارس المدرع
+                knight: {
+                    w: 22, h: 16, scale: 2.35,
+                    frames: {
+                        idle: [
+                            ".......KCCK...........",
+                            "......KHHHHK..........",
+                            "......KHdHHK..........",
+                            ".....KHHHHHHK.........",
+                            "....KHHHTTHHHK..KKKK..",
+                            "....KHHttttHHK.KHHHHK.",
+                            "..KKKKKhhhhKKKKKHHLHHK",
+                            ".KHHHHHTTTTTHHHHHHHhhK",
+                            "KhhHHHHTttttTHHHHHHhhK",
+                            "KhKHHHHttttttHHHHHHKK.",
+                            "Kh.KHHHHhhhhHHHHHHK...",
+                            "KK..KhhKKKKKKKKhhK....",
+                            "....KhK........KhK....",
+                            "....KdK........KdK....",
+                            "...KKdK.......KKdK....",
+                            "......................"
+                        ],
+                        walk1: [
+                            ".......KCCK...........",
+                            "......KHHHHK..........",
+                            "......KHdHHK..........",
+                            ".....KHHHHHHK.........",
+                            "....KHHHTTHHHK..KKKK..",
+                            "....KHHttttHHK.KHHHHK.",
+                            "..KKKKKhhhhKKKKKHHLHHK",
+                            ".KHHHHHTTTTTHHHHHHHhhK",
+                            "KhhHHHHTttttTHHHHHHhhK",
+                            "KhKHHHHttttttHHHHHHKK.",
+                            "Kh.KHHHHhhhhHHHHHHK...",
+                            "KK.KhKKKKKKKKKK..KhK..",
+                            "..KdK..........Kd..KdK",
+                            ".KdK............KK..KK",
+                            ".KK...................",
+                            "......................"
+                        ],
+                        walk2: [
+                            ".......KCCK...........",
+                            "......KHHHHK..........",
+                            "......KHdHHK..........",
+                            ".....KHHHHHHK.........",
+                            "....KHHHTTHHHK..KKKK..",
+                            "....KHHttttHHK.KHHHHK.",
+                            "..KKKKKhhhhKKKKKHHLHHK",
+                            ".KHHHHHTTTTTHHHHHHHhhK",
+                            "KhhHHHHTttttTHHHHHHhhK",
+                            "KhKHHHHttttttHHHHHHKK.",
+                            "Kh.KHHHHhhhhHHHHHHK...",
+                            "KK..KhKKKKKKKKhhK.....",
+                            ".....KdK....KdK.......",
+                            "......KK....KK........",
+                            "......................",
+                            "......................"
+                        ],
+                        action: [
+                            ".......KCCK...........",
+                            "......KHHHHK..........",
+                            "......KHdHHK..........",
+                            ".....KHHHHHHK.........",
+                            "....KHHHTTHHHKKKKKKK..",
+                            "....KHHttttHHyyHHHHHK.",
+                            "..KKKKKhhhhKKKKKHHLHHK",
+                            ".KHHHHHTTTTTHHHHHHHhhK",
+                            "KhhHHHHTttttTHHHHHHhhK",
+                            "KhKHHHHttttttHHHHHHKK.",
+                            "Kh.KHHHHhhhhHHHHHHK...",
+                            "KK.KhKKKKKKKKKK..KhK..",
+                            "..KdK..........Kd..KdK",
+                            ".KdK............KK..KK",
+                            "......................",
+                            "......................"
+                        ]
+                    }
+                },
+                // 8. المنجنيق
+                catapult: {
+                    w: 24, h: 16, scale: 2.45,
+                    frames: {
+                        idle: [
+                            "....KKKK................",
+                            "...KOOROK...............",
+                            "...KROORK...............",
+                            "....KKKK................",
+                            "....KWWK......KKKK......",
+                            ".....KWWK....KTTTTK.....",
+                            "......KWWK..KWWwwWWK....",
+                            ".......KWWKKWWwwwwWWK...",
+                            "........KWWWWwwwwwwWWK..",
+                            "...KKKKKKKKKKKKKKKKKKKK.",
+                            "..KWWWWWWWWWWWWWWWWWWWWK",
+                            ".KwwKKKKwwwwwwwwKKKKwwwK",
+                            ".KwKHHHHKwwwwwwKHHHHKwwK",
+                            "..KKHddHKKKKKKKKHddHKK..",
+                            "...KHHHHK......KHHHHK...",
+                            "....KKKK........KKKK...."
+                        ],
+                        walk1: [
+                            "....KKKK................",
+                            "...KOOROK...............",
+                            "...KROORK...............",
+                            "....KKKK................",
+                            "....KWWK......KKKK......",
+                            ".....KWWK....KTTTTK.....",
+                            "......KWWK..KWWwwWWK....",
+                            ".......KWWKKWWwwwwWWK...",
+                            "........KWWWWwwwwwwWWK..",
+                            "...KKKKKKKKKKKKKKKKKKKK.",
+                            "..KWWWWWWWWWWWWWWWWWWWWK",
+                            ".KwwKKKKwwwwwwwwKKKKwwwK",
+                            ".KwKdHHdKwwwwwwKdHHdKwwK",
+                            "..KKHHHHKKKKKKKKHHHHKK..",
+                            "...KHHHHK......KHHHHK...",
+                            "....KKKK........KKKK...."
+                        ],
+                        walk2: [
+                            "....KKKK................",
+                            "...KOOROK...............",
+                            "...KROORK...............",
+                            "....KKKK................",
+                            "....KWWK......KKKK......",
+                            ".....KWWK....KTTTTK.....",
+                            "......KWWK..KWWwwWWK....",
+                            ".......KWWKKWWwwwwWWK...",
+                            "........KWWWWwwwwwwWWK..",
+                            "...KKKKKKKKKKKKKKKKKKKK.",
+                            "..KWWWWWWWWWWWWWWWWWWWWK",
+                            ".KwwKKKKwwwwwwwwKKKKwwwK",
+                            ".KwKHHdHKwwwwwwKHHdHKwwK",
+                            "..KKHddHKKKKKKKKHddHKK..",
+                            "...KHHHHK......KHHHHK...",
+                            "....KKKK........KKKK...."
+                        ],
+                        action: [
+                            "...............KKKK.....",
+                            "..............KOOROK....",
+                            ".............KWWROORK...",
+                            "............KWWKKKKK....",
+                            "...........KWWK.KKKK....",
+                            "..........KWWK.KTTTTK...",
+                            ".........KWWK.KWWwwWWK..",
+                            "........KWWKKWWwwwwWWK..",
+                            ".......KWWWWwwwwwwWWK...",
+                            "...KKKKKKKKKKKKKKKKKKKK.",
+                            "..KWWWWWWWWWWWWWWWWWWWWK",
+                            ".KwwKKKKwwwwwwwwKKKKwwwK",
+                            ".KwKHHHHKwwwwwwKHHHHKwwK",
+                            "..KKHddHKKKKKKKKHddHKK..",
+                            "...KHHHHK......KHHHHK...",
+                            "....KKKK........KKKK...."
+                        ]
+                    }
+                }
+            };
+        }
+
+        getSpriteCanvas(unitType, frameName, owner, factionKey, flipX) {
+            const key = `${unitType}_${frameName}_${owner}_${factionKey}_${flipX ? 1 : 0}`;
+            if (this.cache.has(key)) return this.cache.get(key);
+
+            const def = this.sprites[unitType];
+            if (!def) return null;
+
+            const matrix = def.frames[frameName] || def.frames.idle;
+            const teamPal = this.getTeamPalette(owner, factionKey);
+            const fullPal = Object.assign({}, this.basePalette, teamPal);
+
+            const off = document.createElement('canvas');
+            off.width = def.w;
+            off.height = def.h;
+            const octx = off.getContext('2d');
+            octx.imageSmoothingEnabled = false;
+
+            for (let y = 0; y < matrix.length; y++) {
+                const row = matrix[y];
+                for (let x = 0; x < row.length; x++) {
+                    const color = fullPal[row[x]];
+                    if (color) {
+                        const drawX = flipX ? (def.w - 1 - x) : x;
+                        octx.fillStyle = color;
+                        octx.fillRect(drawX, y, 1, 1);
+                    }
+                }
+            }
+
+            this.cache.set(key, off);
+            return off;
+        }
+
+        drawUnit(ctx, unit, time, factionKey) {
+            const def = this.sprites[unit.type];
+            if (!def) return;
+
+            let frameName = 'idle';
+            if (unit.attackAnimTimer > 0) {
+                frameName = 'action';
+            } else if (unit.task === 'gather' || unit.task === 'build') {
+                frameName = Math.floor(time * 7 + unit.id) % 2 === 0 ? 'action' : 'idle';
+            } else if (unit.isMoving) {
+                frameName = Math.floor(time * 9 + unit.id) % 2 === 0 ? 'walk1' : 'walk2';
+            }
+
+            const sprite = this.getSpriteCanvas(unit.type, frameName, unit.owner, factionKey, unit.facingLeft);
+            if (!sprite) return;
+
+            const drawW = Math.round(def.w * def.scale);
+            const drawH = Math.round(def.h * def.scale);
+
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(sprite, Math.round(-drawW / 2), Math.round(-drawH * 0.78), drawW, drawH);
+        }
+    }
+    const pixelEngine = new PixelArtEngine();
+
+    // ==================== 3. ثوابت وتعريفات اللعبة ====================
+    const TILE_SIZE = 44;
+    const MAP_COLS = 64;
+    const MAP_ROWS = 64;
+    const WORLD_W = MAP_COLS * TILE_SIZE;
+    const WORLD_H = MAP_ROWS * TILE_SIZE;
+
+    const AGES = [
+        { id: 0, name: 'العصر المظلم', cost: null },
+        { id: 1, name: 'العصر الإقطاعي', cost: { food: 400, gold: 150 } },
+        { id: 2, name: 'عصر القلاع', cost: { food: 700, gold: 400 } },
+        { id: 3, name: 'العصر الإمبراطوري', cost: { food: 1100, gold: 800 } }
+    ];
+
+    const BUILDING_DEFS = {
+        townCenter: {
+            name: 'مركز المدينة', icon: '🏰', size: 110, maxHp: 1800,
+            cost: { wood: 250, stone: 150 }, buildTime: 18, popBonus: 10,
+            minAge: 0, vision: 340, isDropoff: true,
+            desc: 'يدرّب العمال، يستقبل الموارد، ويطوّر العصور.'
+        },
+        house: {
+            name: 'منزل', icon: '🏠', size: 54, maxHp: 350,
+            cost: { wood: 35 }, buildTime: 5, popBonus: 5,
+            minAge: 0, vision: 170,
+            desc: 'يزيد الحد الأقصى للسكان بمقدار +5.'
+        },
+        barracks: {
+            name: 'ثكنة عسكرية', icon: '⚔️', size: 82, maxHp: 850,
+            cost: { wood: 140 }, buildTime: 10, popBonus: 0,
+            minAge: 0, vision: 210,
+            desc: 'تدرب المشاة: حامل الرمح والمبارز.'
+        },
+        archery: {
+            name: 'ميدان الرماية', icon: '🏹', size: 82, maxHp: 750,
+            cost: { wood: 150, gold: 40 }, buildTime: 11, popBonus: 0,
+            minAge: 1, vision: 220,
+            desc: 'يدرب رماة السهام ورماة النشاب (يتطلب العصر الإقطاعي).'
+        },
+        stable: {
+            name: 'إسطبل الخيول', icon: '🐎', size: 86, maxHp: 850,
+            cost: { wood: 170, food: 60 }, buildTime: 12, popBonus: 0,
+            minAge: 1, vision: 220,
+            desc: 'يدرب الفرسان الخفيفة والفرسان المدرعين (العصر الإقطاعي).'
+        },
+        tower: {
+            name: 'برج مراقبة', icon: '🗼', size: 48, maxHp: 700,
+            cost: { stone: 110, wood: 50 }, buildTime: 9, popBonus: 0,
+            minAge: 1, vision: 330, range: 270, damage: 18, reload: 1.3,
+            desc: 'برج دفاعي يطلق السهام تلقائياً على الأعداء.'
+        },
+        siege: {
+            name: 'ورشة الحصار', icon: '☄️', size: 90, maxHp: 900,
+            cost: { wood: 220, gold: 120 }, buildTime: 14, popBonus: 0,
+            minAge: 2, vision: 210,
+            desc: 'تصنع المنجنيق المدمر للمباني والتجمعات (عصر القلاع).'
+        }
+    };
+
+    const UNIT_DEFS = {
+        villager: {
+            name: 'عامل (قروي)', icon: '👷', radius: 13, maxHp: 55, speed: 92,
+            damage: 5, range: 26, reload: 1.2, armor: 0,
+            cost: { food: 50 }, trainTime: 5, minAge: 0, vision: 210,
+            desc: 'يجمع الخشب والطعام والذهب والحجر، ويبني ويصلح المباني.'
+        },
+        spearman: {
+            name: 'حامل رمح', icon: '🔱', radius: 14, maxHp: 85, speed: 96,
+            damage: 11, bonusVsCavalry: 16, range: 32, reload: 1.1, armor: 1,
+            cost: { food: 45, wood: 30 }, trainTime: 6, minAge: 0, vision: 220,
+            desc: 'وحدة مشاة سريعة، فعالة جداً ضد الفرسان.'
+        },
+        swordsman: {
+            name: 'مبارز', icon: '🗡️', radius: 15, maxHp: 125, speed: 88,
+            damage: 17, bonusVsBuilding: 8, range: 30, reload: 1.0, armor: 2,
+            cost: { food: 65, gold: 25 }, trainTime: 7, minAge: 1, vision: 220,
+            desc: 'مقاتل مدرع قوي في الاشتباك المباشر وهدم المباني.'
+        },
+        archer: {
+            name: 'رامي سهام', icon: '🏹', radius: 13, maxHp: 65, speed: 94,
+            damage: 13, bonusVsInfantry: 6, range: 195, reload: 1.35, armor: 0,
+            cost: { wood: 45, gold: 35 }, trainTime: 7, minAge: 1, vision: 250,
+            isRanged: true, projType: 'arrow',
+            desc: 'يهاجم عن بُعد، فعال ضد المشاة ولكن ضعيف أمام الفرسان.'
+        },
+        crossbow: {
+            name: 'رامي نشاب', icon: '🎯', radius: 14, maxHp: 85, speed: 92,
+            damage: 21, bonusVsInfantry: 9, range: 225, reload: 1.4, armor: 1,
+            cost: { wood: 60, gold: 55 }, trainTime: 8, minAge: 2, vision: 270,
+            isRanged: true, projType: 'arrow',
+            desc: 'رامي متطور يخترق الدروع بضرر عالٍ (عصر القلاع).'
+        },
+        lightCav: {
+            name: 'فارس خفيف', icon: '🐎', radius: 17, maxHp: 140, speed: 145,
+            damage: 16, bonusVsArcher: 10, range: 34, reload: 1.05, armor: 1,
+            cost: { food: 85, wood: 30 }, trainTime: 8, minAge: 1, vision: 270,
+            desc: 'فارس سريع ممتاز للاستطلاع ومطاردة الرماة.'
+        },
+        knight: {
+            name: 'فارس مدرع', icon: '🛡️', radius: 18, maxHp: 230, speed: 130,
+            damage: 26, bonusVsArcher: 12, range: 35, reload: 1.1, armor: 4,
+            cost: { food: 90, gold: 80 }, trainTime: 10, minAge: 2, vision: 260,
+            desc: 'سلاح الفرسان الثقيل؛ درع سميك وهجوم ساحق (عصر القلاع).'
+        },
+        catapult: {
+            name: 'منجنيق', icon: '☄️', radius: 22, maxHp: 180, speed: 55,
+            damage: 65, bonusVsBuilding: 85, splashRadius: 65, range: 310, reload: 3.2, armor: 0,
+            cost: { wood: 160, gold: 130 }, trainTime: 13, minAge: 2, vision: 320,
+            isRanged: true, projType: 'boulder',
+            desc: 'آلة حصار تقذف صخوراً متفجرة تدمر المباني والتجمعات.'
+        }
+    };
+
+    const UPGRADES = {
+        attack: {
+            name: 'تطوير الأسلحة (+هجومي)', icon: '⚔️', maxLevel: 3,
+            baseCost: { food: 120, gold: 80 },
+            desc: 'يزيد ضرر جميع الوحدات العسكرية بمقدار +3 لكل مستوى.'
+        },
+        armor: {
+            name: 'تطوير الدروع (+دفاعي)', icon: '🛡️', maxLevel: 3,
+            baseCost: { food: 120, gold: 90 },
+            desc: 'يزيد درع الوحدات العسكرية بمقدار +2 لكل مستوى.'
+        },
+        gather: {
+            name: 'أدوات الحصاد (+جمع الموارد)', icon: '⛏️', maxLevel: 3,
+            baseCost: { food: 100, wood: 100 },
+            desc: 'يزيد سرعة جمع الموارد وحمولة العمال بنسبة 25%.'
+        }
+    };
+
+    const MAP_THEMES = {
+        oasis: {
+            name: 'الواحة الخضراء',
+            ground1: '#4d7c32', ground2: '#44702b',
+            treeColor: '#255218', treeTrunk: '#5c3a21',
+            woodMult: 1.1, foodMult: 1.1, goldMult: 1.0, stoneMult: 1.0,
+            hasRiver: false
+        },
+        desert: {
+            name: 'الصحراء القاحلة',
+            ground1: '#d4b46a', ground2: '#c9a659',
+            treeColor: '#3a6b24', treeTrunk: '#694726',
+            woodMult: 0.65, foodMult: 0.85, goldMult: 1.5, stoneMult: 1.1,
+            hasRiver: false
+        },
+        snow: {
+            name: 'الجبال الثلجية',
+            ground1: '#dce6ed', ground2: '#cddbe4',
+            treeColor: '#1d4d3e', treeTrunk: '#3d2b1f',
+            woodMult: 0.95, foodMult: 0.85, goldMult: 1.25, stoneMult: 1.45,
+            hasRiver: false
+        },
+        islands: {
+            name: 'الجزر النهرية',
+            ground1: '#48823c', ground2: '#3f7534',
+            treeColor: '#1f541d', treeTrunk: '#54351d',
+            woodMult: 1.0, foodMult: 1.15, goldMult: 1.15, stoneMult: 1.0,
+            hasRiver: true
+        }
+    };
+
+    const FACTION_CONFIGS = {
+        mongols:   { name: 'المغول', style: 'rush', attackInterval: 58, desc: 'غارات سريعة بالفرسان' },
+        romans:    { name: 'الرومان', style: 'turtle', attackInterval: 85, desc: 'تحصينات وأبراج ومشاة' },
+        crusaders: { name: 'الصليبيون', style: 'balanced', attackInterval: 72, desc: 'توسع متوازن وحصار' },
+        mamluks:   { name: 'المماليك', style: 'elite', attackInterval: 76, desc: 'نخبة الفرسان المدرعين' }
+    };
+
+    // ==================== 4. حالة اللعبة ====================
+    const state = {
+        running: false,
+        paused: false,
+        time: 0,
+        mapType: 'oasis',
+        enemyFaction: 'mongols',
+        difficulty: 'medium',
+        actionOrderMode: false,
+        lastAlertTime: 0,
+
+        cam: { x: 0, y: 0 },
+        players: [
+            {
+                id: 0, name: 'إمبراطوريتك', color: '#3b82f6',
+                res: { wood: 220, food: 220, gold: 120, stone: 120 },
+                age: 0, ageProgress: 0, agingUp: false,
+                upgrades: { attack: 0, armor: 0, gather: 0 },
+                pop: 0, maxPop: 0,
+                stats: { trained: 0, killed: 0, buildingsBuilt: 0 }
+            },
+            {
+                id: 1, name: 'العدو', color: '#ef4444',
+                res: { wood: 250, food: 250, gold: 150, stone: 150 },
+                age: 0, ageProgress: 0, agingUp: false,
+                upgrades: { attack: 0, armor: 0, gather: 0 },
+                pop: 0, maxPop: 0,
+                aiTimer: 0, nextWaveTime: 65
+            }
+        ],
+
+        terrain: [],
+        fog: [],
+        resources: [],
+        buildings: [],
+        units: [],
+        projectiles: [],
+        particles: [],
+        floatingTexts: [],
+
+        selectedIds: new Set(),
+        buildMode: null,
+        mouse: { x: 0, y: 0, worldX: 0, worldY: 0, down: false, dragStart: null, isDragging: false },
+        controlGroups: {},
+        keys: {}
+    };
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const minimapCanvas = document.getElementById('minimapCanvas');
+    const mctx = minimapCanvas.getContext('2d');
+
+    let entityIdCounter = 1;
+    function nextId() { return entityIdCounter++; }
+
+    // ==================== 5. تهيئة القائمة الرئيسية ====================
+    function setupStartMenu() {
+        document.querySelectorAll('.map-choice').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.map-choice').forEach(b => b.classList.remove('aoe-card-selected'));
+                btn.classList.add('aoe-card-selected');
+                state.mapType = btn.dataset.map;
+            });
+        });
+
+        document.querySelectorAll('.faction-choice').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.faction-choice').forEach(b => b.classList.remove('aoe-card-selected'));
+                btn.classList.add('aoe-card-selected');
+                state.enemyFaction = btn.dataset.faction;
+            });
+        });
+
+        document.querySelectorAll('.diff-choice').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.diff-choice').forEach(b => b.classList.remove('aoe-card-selected'));
+                btn.classList.add('aoe-card-selected');
+                state.difficulty = btn.dataset.diff;
+            });
+        });
+
+        document.getElementById('startGameBtn').addEventListener('click', () => {
+            try {
+                sound.init();
+                sound.playAgeUp();
+                document.getElementById('startMenu').classList.add('hidden');
+                document.getElementById('gameUI').classList.remove('hidden');
+                startGame();
+            } catch (err) {
+                console.error('Error starting game:', err);
+            }
+        });
+
+        document.getElementById('restartBtn').addEventListener('click', () => {
+            location.reload();
+        });
+    }
+
+    // ==================== 6. توليد العالم والموارد ====================
+    function generateWorld() {
+        const theme = MAP_THEMES[state.mapType];
+        state.terrain = Array.from({ length: MAP_ROWS }, () => Array(MAP_COLS).fill(0));
+        state.fog = Array.from({ length: MAP_ROWS }, () => Array(MAP_COLS).fill(0));
+        state.resources = [];
+        state.buildings = [];
+        state.units = [];
+        state.projectiles = [];
+        state.particles = [];
+        state.floatingTexts = [];
+
+        if (theme.hasRiver) {
+            for (let r = 0; r < MAP_ROWS; r++) {
+                for (let c = 0; c < MAP_COLS; c++) {
+                    const diag = Math.abs((r + c) - MAP_COLS);
+                    if (diag <= 3) {
+                        const isBridge = (Math.abs(r - 14) <= 2) || (Math.abs(r - 32) <= 2) || (Math.abs(r - 50) <= 2);
+                        if (!isBridge) {
+                            state.terrain[r][c] = 1;
+                        }
+                    }
+                }
+            }
+        }
+
+        const p0Start = { x: 11 * TILE_SIZE, y: (MAP_ROWS - 11) * TILE_SIZE };
+        const p1Start = { x: (MAP_COLS - 11) * TILE_SIZE, y: 11 * TILE_SIZE };
+
+        const playerTC = spawnBuilding(0, 'townCenter', p0Start.x, p0Start.y, true);
+        spawnBuilding(1, 'townCenter', p1Start.x, p1Start.y, true);
+
+        for (let i = 0; i < 4; i++) {
+            spawnUnit(0, 'villager', p0Start.x + (i - 1.5) * 34, p0Start.y + 82);
+            spawnUnit(1, 'villager', p1Start.x + (i - 1.5) * 34, p1Start.y + 82);
+        }
+        spawnUnit(0, 'spearman', p0Start.x + 85, p0Start.y - 40);
+        spawnUnit(1, 'spearman', p1Start.x - 85, p1Start.y + 40);
+
+        // تحديد مركز مدينة اللاعب افتراضياً لسهولة البدء
+        state.selectedIds.clear();
+        state.selectedIds.add(playerTC.id);
+
+        spawnStartingResources(p0Start.x, p0Start.y);
+        spawnStartingResources(p1Start.x, p1Start.y);
+
+        scatterResource('tree', Math.floor(165 * theme.woodMult), 130, p0Start, p1Start);
+        scatterResource('berry', Math.floor(24 * theme.foodMult), 180, p0Start, p1Start);
+        scatterResource('gold', Math.floor(24 * theme.goldMult), 250, p0Start, p1Start);
+        scatterResource('stone', Math.floor(22 * theme.stoneMult), 250, p0Start, p1Start);
+        scatterAnimals(34, p0Start, p1Start);
+
+        centerCameraOn(p0Start.x, p0Start.y);
+    }
+
+    function spawnStartingResources(bx, by) {
+        for (let i = 0; i < 4; i++) {
+            addResource('berry', bx - 145 + i * 28, by - 95);
+        }
+        for (let i = 0; i < 8; i++) {
+            addResource('tree', bx + 135 + (i % 4) * 28, by - 110 + Math.floor(i / 4) * 30);
+        }
+        addResource('gold', bx - 135, by + 110);
+        addResource('gold', bx - 105, by + 125);
+        addResource('stone', bx + 130, by + 110);
+        addResource('stone', bx + 158, by + 120);
+    }
+
+    function scatterResource(type, count, minDistFromBase, p0, p1) {
+        let placed = 0;
+        let attempts = 0;
+        while (placed < count && attempts < count * 15) {
+            attempts++;
+            const x = (3 + Math.random() * (MAP_COLS - 6)) * TILE_SIZE;
+            const y = (3 + Math.random() * (MAP_ROWS - 6)) * TILE_SIZE;
+            const c = Math.floor(x / TILE_SIZE);
+            const r = Math.floor(y / TILE_SIZE);
+            if (state.terrain[r] && state.terrain[r][c] === 1) continue;
+            if (Math.hypot(x - p0.x, y - p0.y) < minDistFromBase) continue;
+            if (Math.hypot(x - p1.x, y - p1.y) < minDistFromBase) continue;
+
+            const clusterSize = type === 'tree' ? 3 : 2;
+            for (let k = 0; k < clusterSize && placed < count; k++) {
+                const ox = x + (Math.random() - 0.5) * 52;
+                const oy = y + (Math.random() - 0.5) * 52;
+                const oc = Math.floor(ox / TILE_SIZE);
+                const or = Math.floor(oy / TILE_SIZE);
+                if (or >= 1 && or < MAP_ROWS - 1 && oc >= 1 && oc < MAP_COLS - 1 && state.terrain[or][oc] === 0) {
+                    if (!state.resources.some(res => Math.hypot(res.x - ox, res.y - oy) < 24)) {
+                        addResource(type, ox, oy);
+                        placed++;
+                    }
+                }
+            }
+        }
+    }
+
+    function scatterAnimals(count, p0, p1) {
+        const species = ['sheep', 'deer', 'boar', 'cow'];
+        let placed = 0, attempts = 0;
+        while (placed < count && attempts < count * 30) {
+            attempts++;
+            const x = (3 + Math.random() * (MAP_COLS - 6)) * TILE_SIZE;
+            const y = (3 + Math.random() * (MAP_ROWS - 6)) * TILE_SIZE;
+            const c = Math.floor(x / TILE_SIZE), r = Math.floor(y / TILE_SIZE);
+            if (!state.terrain[r] || state.terrain[r][c] !== 0) continue;
+            if (Math.hypot(x-p0.x,y-p0.y) < 190 || Math.hypot(x-p1.x,y-p1.y) < 190) continue;
+            if (state.resources.some(q => Math.hypot(q.x-x,q.y-y) < 38)) continue;
+            const animal = species[Math.floor(Math.random()*species.length)];
+            state.resources.push({ id: nextId(), type: 'animal', species: animal, x, y,
+                amount: animal === 'cow' ? 190 : animal === 'deer' ? 125 : 95,
+                maxAmount: animal === 'cow' ? 190 : animal === 'deer' ? 125 : 95, radius: 13 });
+            placed++;
+        }
+    }
+
+    function addResource(type, x, y) {
+        const amounts = { tree: 120, berry: 150, gold: 450, stone: 400 };
+        state.resources.push({
+            id: nextId(),
+            type, x, y,
+            amount: amounts[type],
+            maxAmount: amounts[type],
+            radius: type === 'tree' ? 14 : 16
+        });
+    }
+
+    function spawnBuilding(owner, type, x, y, completed = false) {
+        const def = BUILDING_DEFS[type];
+        const b = {
+            id: nextId(),
+            owner, type, x, y,
+            size: def.size,
+            hp: completed ? def.maxHp : Math.ceil(def.maxHp * 0.2),
+            maxHp: def.maxHp,
+            completed,
+            buildProgress: completed ? def.buildTime : 0,
+            buildTime: def.buildTime,
+            trainQueue: [],
+            trainTimer: 0,
+            attackCooldown: 0,
+            rallyPoint: { x, y: y + def.size * 0.75 }
+        };
+        state.buildings.push(b);
+        if (owner === 0 && completed) state.players[0].stats.buildingsBuilt++;
+        return b;
+    }
+
+    function spawnUnit(owner, type, x, y) {
+        const def = UNIT_DEFS[type];
+        const u = {
+            id: nextId(),
+            owner, type, x, y,
+            radius: def.radius,
+            hp: def.maxHp,
+            maxHp: def.maxHp,
+            attackCooldown: 0,
+            attackAnimTimer: 0,
+            facingLeft: owner === 1,
+            isMoving: false,
+            task: 'idle',
+            targetPos: null,
+            targetId: null,
+            carryType: null,
+            carryAmount: 0,
+            gatherTimer: 0
+        };
+        state.units.push(u);
+        if (owner === 0) state.players[0].stats.trained++;
+        return u;
+    }
+
+    // ==================== 7. بدء اللعبة وحلقة التحديث ====================
+    function startGame() {
+        state.running = true;
+        state.paused = false;
+        state.time = 0;
+
+        const faction = FACTION_CONFIGS[state.enemyFaction];
+        const p1 = state.players[1];
+        p1.name = faction.name;
+        if (state.difficulty === 'easy') {
+            p1.res = { wood: 180, food: 180, gold: 80, stone: 80 };
+            p1.nextWaveTime = 115;
+        } else if (state.difficulty === 'medium') {
+            p1.res = { wood: 280, food: 280, gold: 160, stone: 150 };
+            p1.nextWaveTime = faction.attackInterval;
+        } else {
+            p1.res = { wood: 450, food: 450, gold: 300, stone: 250 };
+            p1.nextWaveTime = Math.max(45, faction.attackInterval - 18);
+        }
+
+        document.getElementById('enemyInfoDisplay').textContent = `${faction.name} (${faction.desc})`;
+
+        resizeCanvas();
+        generateWorld();
+        updatePopulations();
+        updateFogOfWar();
+        lastSelectionSignature = '';
+        updateUI();
+        showToast(`بدأت المعركة في ${MAP_THEMES[state.mapType].name} ضد ${faction.name}!`, 'amber');
+        startLoop();
+    }
+
+    let loopHandle = null;
+    function startLoop() {
+        if (loopHandle) cancelAnimationFrame(loopHandle);
+        lastTimestamp = 0;
+        loopHandle = requestAnimationFrame(gameLoop);
+    }
+
+    function resizeCanvas() {
+        canvas.width = window.innerWidth || 1024;
+        canvas.height = window.innerHeight || 768;
+        const rect = minimapCanvas.getBoundingClientRect();
+        minimapCanvas.width = Math.max(120, Math.floor(rect.width || 220));
+        minimapCanvas.height = Math.max(80, Math.floor(rect.height || 130));
+    }
+    window.addEventListener('resize', resizeCanvas);
+
+    function centerCameraOn(wx, wy) {
+        const cw = canvas.width || window.innerWidth || 1024;
+        const ch = canvas.height || window.innerHeight || 768;
+        state.cam.x = Math.max(0, Math.min(Math.max(0, WORLD_W - cw), wx - cw / 2));
+        state.cam.y = Math.max(0, Math.min(Math.max(0, WORLD_H - ch), wy - ch / 2));
+    }
+
+    function showToast(msg, color = 'amber') {
+        const container = document.getElementById('toastContainer');
+        if (!container) return;
+        const el = document.createElement('div');
+        const colors = {
+            amber: 'border-amber-500 text-amber-200 bg-stone-900/95',
+            red: 'border-red-500 text-red-200 bg-red-950/95',
+            green: 'border-emerald-500 text-emerald-200 bg-emerald-950/95'
+        };
+        el.className = `px-3.5 py-1.5 rounded-lg border text-xs md:text-sm font-bold shadow-lg transition-all duration-300 ${colors[color] || colors.amber}`;
+        el.textContent = msg;
+        container.appendChild(el);
+        setTimeout(() => {
+            el.style.opacity = '0';
+            el.style.transform = 'translateY(-8px)';
+            setTimeout(() => el.remove(), 300);
+        }, 2800);
+    }
+
+    let lastTimestamp = 0;
+    function gameLoop(timestamp) {
+        if (!state.running) return;
+        try {
+            const dt = Math.min(0.05, Math.max(0.001, (timestamp - lastTimestamp) / 1000 || 0.016));
+            lastTimestamp = timestamp;
+
+            if (!state.paused) {
+                state.time += dt;
+                updateCamera(dt);
+                updatePopulations();
+                updateFogOfWar();
+                updateBuildings(dt);
+                updateUnits(dt);
+                updateProjectiles(dt);
+                updateParticles(dt);
+                updateEnemyAI(dt);
+                checkVictoryConditions();
+            } else {
+                updateCamera(dt);
+            }
+
+            renderWorld();
+            renderMinimap();
+
+            if (Math.floor(state.time * 5) !== Math.floor((state.time - dt) * 5)) {
+                updateUI();
+            }
+        } catch (err) {
+            console.error('Game loop error recovered:', err);
+        }
+        loopHandle = requestAnimationFrame(gameLoop);
+    }
+
+    function updateCamera(dt) {
+        const speed = 580 * dt;
+        if (state.keys['ArrowLeft'] || state.keys['KeyA']) state.cam.x -= speed;
+        if (state.keys['ArrowRight'] || state.keys['KeyD']) state.cam.x += speed;
+        if (state.keys['ArrowUp'] || state.keys['KeyW']) state.cam.y -= speed;
+        if (state.keys['ArrowDown'] || state.keys['KeyS']) state.cam.y += speed;
+
+        state.cam.x = Math.max(0, Math.min(Math.max(0, WORLD_W - canvas.width), state.cam.x));
+        state.cam.y = Math.max(0, Math.min(Math.max(0, WORLD_H - canvas.height), state.cam.y));
+    }
+
+    function updatePopulations() {
+        for (let pid = 0; pid <= 1; pid++) {
+            const p = state.players[pid];
+            p.pop = state.units.filter(u => u.owner === pid).length;
+            let maxP = 0;
+            state.buildings.forEach(b => {
+                if (b.owner === pid && b.completed) {
+                    maxP += BUILDING_DEFS[b.type].popBonus || 0;
+                }
+            });
+            p.maxPop = Math.min(100, maxP);
+        }
+    }
+
+    function updateFogOfWar() {
+        for (let r = 0; r < MAP_ROWS; r++) {
+            for (let c = 0; c < MAP_COLS; c++) {
+                if (state.fog[r][c] === 2) state.fog[r][c] = 1;
+            }
+        }
+
+        const revealCircle = (wx, wy, radius) => {
+            const minC = Math.max(0, Math.floor((wx - radius) / TILE_SIZE));
+            const maxC = Math.min(MAP_COLS - 1, Math.floor((wx + radius) / TILE_SIZE));
+            const minR = Math.max(0, Math.floor((wy - radius) / TILE_SIZE));
+            const maxR = Math.min(MAP_ROWS - 1, Math.floor((wy + radius) / TILE_SIZE));
+            const rSq = radius * radius;
+
+            for (let r = minR; r <= maxR; r++) {
+                for (let c = minC; c <= maxC; c++) {
+                    const tx = (c + 0.5) * TILE_SIZE;
+                    const ty = (r + 0.5) * TILE_SIZE;
+                    if ((tx - wx) ** 2 + (ty - wy) ** 2 <= rSq) {
+                        state.fog[r][c] = 2;
+                    }
+                }
+            }
+        };
+
+        state.units.forEach(u => {
+            if (u.owner === 0) revealCircle(u.x, u.y, UNIT_DEFS[u.type].vision);
+        });
+        state.buildings.forEach(b => {
+            if (b.owner === 0) revealCircle(b.x, b.y, BUILDING_DEFS[b.type].vision);
+        });
+    }
+
+    function isVisibleToPlayer(wx, wy) {
+        const c = Math.floor(wx / TILE_SIZE);
+        const r = Math.floor(wy / TILE_SIZE);
+        if (r < 0 || r >= MAP_ROWS || c < 0 || c >= MAP_COLS) return false;
+        return state.fog[r][c] === 2;
+    }
+
+    // ==================== 8. تحديث المباني والوحدات والقتال ====================
+    function updateBuildings(dt) {
+        state.buildings.forEach(b => {
+            if (!b.completed) return;
+            const player = state.players[b.owner];
+
+            if (b.type === 'townCenter' && player.agingUp) {
+                player.ageProgress += dt;
+                if (player.ageProgress >= 14) {
+                    player.agingUp = false;
+                    player.ageProgress = 0;
+                    player.age++;
+                    if (b.owner === 0) {
+                        sound.playAgeUp();
+                        showToast(`🎉 ارتقت إمبراطوريتك إلى ${AGES[player.age].name}!`, 'green');
+                    }
+                }
+            }
+
+            if (b.trainQueue.length > 0) {
+                const unitType = b.trainQueue[0];
+                const uDef = UNIT_DEFS[unitType];
+                if (player.pop < player.maxPop) {
+                    b.trainTimer += dt;
+                    if (b.trainTimer >= uDef.trainTime) {
+                        b.trainTimer = 0;
+                        b.trainQueue.shift();
+                        const angle = Math.random() * Math.PI * 2;
+                        const sx = b.x + Math.cos(angle) * (b.size * 0.65);
+                        const sy = b.y + Math.sin(angle) * (b.size * 0.65);
+                        const unit = spawnUnit(b.owner, unitType, sx, sy);
+                        if (b.rallyPoint) {
+                            unit.task = 'move';
+                            unit.targetPos = { x: b.rallyPoint.x + (Math.random() - 0.5) * 30, y: b.rallyPoint.y + (Math.random() - 0.5) * 30 };
+                        }
+                        if (b.owner === 0) sound.playSelect();
+                    }
+                }
+            }
+
+            const def = BUILDING_DEFS[b.type];
+            if (b.type === 'tower' || b.type === 'townCenter') {
+                const range = def.range || 240;
+                const dmg = def.damage || 12;
+                const reload = def.reload || 1.6;
+                b.attackCooldown = Math.max(0, b.attackCooldown - dt);
+                if (b.attackCooldown <= 0) {
+                    const enemy = findNearestEnemy(b.owner, b.x, b.y, range);
+                    if (enemy) {
+                        b.attackCooldown = reload;
+                        fireProjectile(b.owner, b.x, b.y - 20, enemy, dmg, 'arrow', 0);
+                    }
+                }
+            }
+        });
+    }
+
+    function updateUnits(dt) {
+        for (let i = state.units.length - 1; i >= 0; i--) {
+            const u = state.units[i];
+            const def = UNIT_DEFS[u.type];
+            const player = state.players[u.owner];
+            u.attackCooldown = Math.max(0, u.attackCooldown - dt);
+            u.attackAnimTimer = Math.max(0, u.attackAnimTimer - dt);
+            u.isMoving = false;
+
+            if (u.task === 'gather' && u.type === 'villager') {
+                const res = state.resources.find(r => r.id === u.targetId);
+                const maxCarry = 15 + player.upgrades.gather * 5;
+                if (!res || res.amount <= 0) {
+                    const typeBackMap = { wood: 'tree', food: 'berry', gold: 'gold', stone: 'stone' };
+                    const nextRes = findNearestResource(u.x, u.y, typeBackMap[u.carryType] || 'tree', 280);
+                    if (nextRes) {
+                        u.targetId = nextRes.id;
+                    } else if (u.carryAmount > 0) {
+                        u.task = 'return';
+                    } else {
+                        u.task = 'idle';
+                    }
+                } else if (u.carryAmount >= maxCarry) {
+                    u.task = 'return';
+                } else {
+                    const dist = Math.hypot(res.x - u.x, res.y - u.y);
+                    if (dist > res.radius + u.radius + 10) {
+                        moveUnitTowards(u, res.x, res.y, dt);
+                    } else {
+                        u.facingLeft = res.x < u.x;
+                        u.gatherTimer += dt * (1 + player.upgrades.gather * 0.25);
+                        const resMap = { tree: 'wood', berry: 'food', animal: 'food', gold: 'gold', stone: 'stone' };
+                        u.carryType = resMap[res.type];
+                        if (u.gatherTimer >= 0.65) {
+                            u.gatherTimer = 0;
+                            const taken = Math.min(3, res.amount, maxCarry - u.carryAmount);
+                            res.amount -= taken;
+                            u.carryAmount += taken;
+                            spawnParticles(res.x, res.y, res.type === 'gold' ? '#facc15' : '#a3e635', 2);
+                            if (u.owner === 0 && isVisibleToPlayer(u.x, u.y) && Math.random() < 0.25) sound.playGather();
+                            if (res.amount <= 0) {
+                                state.resources = state.resources.filter(r => r.id !== res.id);
+                            }
+                        }
+                    }
+                }
+            } else if (u.task === 'return' && u.type === 'villager') {
+                const tc = findNearestDropoff(u.owner, u.x, u.y);
+                if (!tc) {
+                    u.task = 'idle';
+                } else {
+                    const dist = Math.hypot(tc.x - u.x, tc.y - u.y);
+                    if (dist > tc.size * 0.55 + u.radius + 8) {
+                        moveUnitTowards(u, tc.x, tc.y, dt);
+                    } else {
+                        if (u.carryType && u.carryAmount > 0) {
+                            player.res[u.carryType] += u.carryAmount;
+                            if (u.owner === 0) addFloatingText(u.x, u.y - 18, `+${u.carryAmount}`, '#fde047');
+                            u.carryAmount = 0;
+                        }
+                        const res = state.resources.find(r => r.id === u.targetId);
+                        if (res && res.amount > 0) {
+                            u.task = 'gather';
+                        } else {
+                            u.task = 'idle';
+                        }
+                    }
+                }
+            } else if (u.task === 'build' && u.type === 'villager') {
+                const b = state.buildings.find(bld => bld.id === u.targetId);
+                if (!b || (b.completed && b.hp >= b.maxHp)) {
+                    u.task = 'idle';
+                } else {
+                    const dist = Math.hypot(b.x - u.x, b.y - u.y);
+                    if (dist > b.size * 0.55 + u.radius + 10) {
+                        moveUnitTowards(u, b.x, b.y, dt);
+                    } else {
+                        u.facingLeft = b.x < u.x;
+                        if (!b.completed) {
+                            b.buildProgress += dt;
+                            b.hp = Math.min(b.maxHp, b.hp + (b.maxHp * 0.8 / b.buildTime) * dt);
+                            if (Math.random() < 0.15) spawnParticles(b.x + (Math.random() - 0.5) * b.size, b.y + (Math.random() - 0.5) * b.size, '#d6d3d1', 1);
+                            if (b.buildProgress >= b.buildTime) {
+                                b.completed = true;
+                                b.hp = b.maxHp;
+                                if (b.owner === 0) {
+                                    player.stats.buildingsBuilt++;
+                                    sound.playBuild();
+                                    showToast(`اكتمل بناء: ${BUILDING_DEFS[b.type].name}`, 'green');
+                                }
+                                u.task = 'idle';
+                            }
+                        } else {
+                            b.hp = Math.min(b.maxHp, b.hp + 35 * dt);
+                        }
+                    }
+                }
+            } else if (u.task === 'attack') {
+                const target = findEntityById(u.targetId);
+                if (!target || target.hp <= 0) {
+                    const nextEnemy = findNearestEnemy(u.owner, u.x, u.y, 240);
+                    if (nextEnemy) u.targetId = nextEnemy.id;
+                    else u.task = 'idle';
+                } else {
+                    const targetRadius = target.size ? target.size * 0.5 : target.radius;
+                    const dist = Math.hypot(target.x - u.x, target.y - u.y);
+                    if (dist > def.range + targetRadius) {
+                        moveUnitTowards(u, target.x, target.y, dt);
+                    } else {
+                        u.facingLeft = target.x < u.x;
+                        if (u.attackCooldown <= 0) {
+                            u.attackCooldown = def.reload;
+                            u.attackAnimTimer = 0.32;
+                            performUnitAttack(u, target);
+                        }
+                    }
+                }
+            } else if (u.task === 'move' && u.targetPos) {
+                const dist = Math.hypot(u.targetPos.x - u.x, u.targetPos.y - u.y);
+                if (dist > 8) {
+                    moveUnitTowards(u, u.targetPos.x, u.targetPos.y, dt);
+                } else {
+                    u.task = 'idle';
+                    u.targetPos = null;
+                }
+            } else if (u.task === 'idle' && u.type !== 'villager') {
+                const enemy = findNearestEnemy(u.owner, u.x, u.y, Math.max(190, def.range + 40));
+                if (enemy) {
+                    u.task = 'attack';
+                    u.targetId = enemy.id;
+                }
+            }
+        }
+
+        // منع تداخل الوحدات
+        for (let i = 0; i < state.units.length; i++) {
+            for (let j = i + 1; j < state.units.length; j++) {
+                const a = state.units[i];
+                const b = state.units[j];
+                const dx = b.x - a.x;
+                const dy = b.y - a.y;
+                const dist = Math.hypot(dx, dy);
+                const minDist = a.radius + b.radius;
+                if (dist > 0 && dist < minDist) {
+                    const push = (minDist - dist) * 0.35;
+                    const nx = dx / dist;
+                    const ny = dy / dist;
+                    a.x -= nx * push;
+                    a.y -= ny * push;
+                    b.x += nx * push;
+                    b.y += ny * push;
+                }
+            }
+        }
+    }
+
+    function moveUnitTowards(u, tx, ty, dt) {
+        const def = UNIT_DEFS[u.type];
+        const dx = tx - u.x;
+        const dy = ty - u.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < 1) return;
+
+        u.isMoving = true;
+        if (Math.abs(dx) > 1.5) u.facingLeft = dx < 0;
+
+        let nx = u.x + (dx / dist) * def.speed * dt;
+        let ny = u.y + (dy / dist) * def.speed * dt;
+
+        const c = Math.floor(nx / TILE_SIZE);
+        const r = Math.floor(ny / TILE_SIZE);
+        if (r >= 0 && r < MAP_ROWS && c >= 0 && c < MAP_COLS && state.terrain[r][c] === 1) {
+            const bridges = [14 * TILE_SIZE, 32 * TILE_SIZE, 50 * TILE_SIZE];
+            const nearestBridgeY = bridges.reduce((prev, curr) => Math.abs(curr - u.y) < Math.abs(prev - u.y) ? curr : prev);
+            ny = u.y + Math.sign(nearestBridgeY - u.y) * def.speed * dt;
+            nx = u.x;
+        }
+
+        u.x = Math.max(20, Math.min(WORLD_W - 20, nx));
+        u.y = Math.max(20, Math.min(WORLD_H - 20, ny));
+    }
+
+    function performUnitAttack(attacker, target) {
+        const def = UNIT_DEFS[attacker.type];
+        const p = state.players[attacker.owner];
+        let dmg = def.damage + p.upgrades.attack * 3;
+
+        if (target.type && UNIT_DEFS[target.type]) {
+            if (def.bonusVsCavalry && (target.type === 'lightCav' || target.type === 'knight')) dmg += def.bonusVsCavalry;
+            if (def.bonusVsInfantry && (target.type === 'spearman' || target.type === 'swordsman')) dmg += def.bonusVsInfantry;
+            if (def.bonusVsArcher && (target.type === 'archer' || target.type === 'crossbow')) dmg += def.bonusVsArcher;
+        } else if (target.size && def.bonusVsBuilding) {
+            dmg += def.bonusVsBuilding;
+        }
+
+        if (def.isRanged) {
+            if (attacker.owner === 0 && isVisibleToPlayer(attacker.x, attacker.y)) sound.playArrow();
+            fireProjectile(attacker.owner, attacker.x, attacker.y - 8, target, dmg, def.projType, def.splashRadius || 0);
+        } else {
+            if (attacker.owner === 0 && isVisibleToPlayer(attacker.x, attacker.y)) sound.playSword();
+            applyDamage(attacker.owner, target, dmg);
+            spawnParticles(target.x, target.y, '#ef4444', 4);
+        }
+    }
+
+    function fireProjectile(owner, x, y, target, damage, type, splashRadius) {
+        state.projectiles.push({
+            owner, x, y,
+            tx: target.x, ty: target.y,
+            targetId: target.id,
+            speed: type === 'boulder' ? 230 : 390,
+            damage, type, splashRadius
+        });
+    }
+
+    function updateProjectiles(dt) {
+        for (let i = state.projectiles.length - 1; i >= 0; i--) {
+            const p = state.projectiles[i];
+            const target = findEntityById(p.targetId);
+            if (target && target.hp > 0) {
+                p.tx = target.x;
+                p.ty = target.y;
+            }
+            const dx = p.tx - p.x;
+            const dy = p.ty - p.y;
+            const dist = Math.hypot(dx, dy);
+            if (dist < 14) {
+                if (p.splashRadius > 0) {
+                    if (isVisibleToPlayer(p.x, p.y)) sound.playExplosion();
+                    spawnParticles(p.x, p.y, '#f97316', 14);
+                    state.units.forEach(u => {
+                        if (u.owner !== p.owner && Math.hypot(u.x - p.x, u.y - p.y) <= p.splashRadius) applyDamage(p.owner, u, p.damage);
+                    });
+                    state.buildings.forEach(b => {
+                        if (b.owner !== p.owner && Math.hypot(b.x - p.x, b.y - p.y) <= p.splashRadius + b.size * 0.4) applyDamage(p.owner, b, p.damage);
+                    });
+                } else if (target && target.hp > 0) {
+                    applyDamage(p.owner, target, p.damage);
+                    spawnParticles(p.x, p.y, '#fbbf24', 3);
+                }
+                state.projectiles.splice(i, 1);
+            } else {
+                p.x += (dx / dist) * p.speed * dt;
+                p.y += (dy / dist) * p.speed * dt;
+            }
+        }
+    }
+
+    function applyDamage(attackerOwner, target, rawDamage) {
+        if (!target || target.hp <= 0) return;
+        let armor = 2;
+        if (target.type && UNIT_DEFS[target.type]) {
+            armor = UNIT_DEFS[target.type].armor + state.players[target.owner].upgrades.armor * 2;
+        }
+        target.hp -= Math.max(2, rawDamage - armor);
+
+        if (target.owner === 0 && target.size && state.time - state.lastAlertTime > 12) {
+            state.lastAlertTime = state.time;
+            sound.playAlert();
+            showToast('⚠️ تحذير: مبانيك تتعرض لهجوم العدو!', 'red');
+        }
+
+        if (target.hp <= 0) {
+            if (target.size) {
+                spawnParticles(target.x, target.y, '#f97316', 20);
+                if (isVisibleToPlayer(target.x, target.y)) sound.playExplosion();
+                state.buildings = state.buildings.filter(b => b.id !== target.id);
+            } else {
+                spawnParticles(target.x, target.y, '#dc2626', 8);
+                if (attackerOwner === 0) state.players[0].stats.killed++;
+                state.units = state.units.filter(u => u.id !== target.id);
+            }
+            state.selectedIds.delete(target.id);
+        }
+    }
+
+    // ==================== 9. الذكاء الاصطناعي للفصائل المعادية ====================
+    function updateEnemyAI(dt) {
+        const ai = state.players[1];
+        const faction = FACTION_CONFIGS[state.enemyFaction];
+        ai.aiTimer += dt;
+
+        if (state.difficulty === 'hard') {
+            ai.res.wood += 3.5 * dt;
+            ai.res.food += 3.5 * dt;
+            ai.res.gold += 2.5 * dt;
+        }
+
+        if (ai.aiTimer < 2.2) return;
+        ai.aiTimer = 0;
+
+        const aiBuildings = state.buildings.filter(b => b.owner === 1);
+        const aiUnits = state.units.filter(u => u.owner === 1);
+        const aiTC = aiBuildings.find(b => b.type === 'townCenter');
+        if (!aiTC) return;
+
+        const villagers = aiUnits.filter(u => u.type === 'villager');
+        const military = aiUnits.filter(u => u.type !== 'villager');
+        const unfinished = aiBuildings.find(b => !b.completed);
+
+        villagers.forEach((v, idx) => {
+            if (v.task === 'idle') {
+                if (unfinished && idx < 2) {
+                    v.task = 'build';
+                    v.targetId = unfinished.id;
+                } else {
+                    const types = ['berry', 'tree', 'gold', 'stone'];
+                    const res = findNearestResource(v.x, v.y, types[idx % types.length], 950);
+                    if (res) {
+                        v.task = 'gather';
+                        v.targetId = res.id;
+                    }
+                }
+            }
+        });
+
+        if (villagers.length < 12 && aiTC.trainQueue.length < 2 && ai.res.food >= 50 && ai.pop < ai.maxPop) {
+            ai.res.food -= 50;
+            aiTC.trainQueue.push('villager');
+        }
+
+        if (ai.maxPop - ai.pop <= 3 && !unfinished && ai.res.wood >= 35) {
+            ai.res.wood -= 35;
+            const bx = Math.max(80, Math.min(WORLD_W - 80, aiTC.x + (Math.random() - 0.5) * 260));
+            const by = Math.max(80, Math.min(WORLD_H - 80, aiTC.y + (Math.random() - 0.5) * 260));
+            spawnBuilding(1, 'house', bx, by, false);
+        }
+
+        if (!ai.agingUp && ai.age < 3 && villagers.length >= 6) {
+            const nextAge = AGES[ai.age + 1];
+            if (ai.res.food >= nextAge.cost.food && ai.res.gold >= nextAge.cost.gold) {
+                ai.res.food -= nextAge.cost.food;
+                ai.res.gold -= nextAge.cost.gold;
+                ai.agingUp = true;
+                ai.ageProgress = 0;
+            }
+        }
+
+        const hasBarracks = aiBuildings.some(b => b.type === 'barracks');
+        const hasArchery = aiBuildings.some(b => b.type === 'archery');
+        const hasStable = aiBuildings.some(b => b.type === 'stable');
+        const hasSiege = aiBuildings.some(b => b.type === 'siege');
+        const towers = aiBuildings.filter(b => b.type === 'tower');
+
+        if (!unfinished) {
+            if (!hasBarracks && ai.res.wood >= 140) {
+                ai.res.wood -= 140;
+                spawnBuilding(1, 'barracks', aiTC.x - 130, aiTC.y + 70, false);
+            } else if (ai.age >= 1 && !hasArchery && ai.res.wood >= 150 && ai.res.gold >= 40) {
+                ai.res.wood -= 150; ai.res.gold -= 40;
+                spawnBuilding(1, 'archery', aiTC.x - 140, aiTC.y - 60, false);
+            } else if (ai.age >= 1 && !hasStable && ai.res.wood >= 170 && ai.res.food >= 60) {
+                ai.res.wood -= 170; ai.res.food -= 60;
+                spawnBuilding(1, 'stable', aiTC.x + 110, aiTC.y + 90, false);
+            } else if (faction.style === 'turtle' && ai.age >= 1 && towers.length < 3 && ai.res.stone >= 110 && ai.res.wood >= 50) {
+                ai.res.stone -= 110; ai.res.wood -= 50;
+                spawnBuilding(1, 'tower', aiTC.x - 170 + towers.length * 60, aiTC.y + 140, false);
+            } else if (ai.age >= 2 && !hasSiege && ai.res.wood >= 220 && ai.res.gold >= 120) {
+                ai.res.wood -= 220; ai.res.gold -= 120;
+                spawnBuilding(1, 'siege', aiTC.x - 90, aiTC.y + 150, false);
+            }
+        }
+
+        aiBuildings.filter(b => b.completed && b.type !== 'townCenter' && b.type !== 'house' && b.type !== 'tower').forEach(pb => {
+            if (pb.trainQueue.length < 2 && ai.pop < ai.maxPop) {
+                let candidate = null;
+                if (pb.type === 'barracks') candidate = ai.age >= 1 ? 'swordsman' : 'spearman';
+                if (pb.type === 'archery') candidate = ai.age >= 2 ? 'crossbow' : 'archer';
+                if (pb.type === 'stable') candidate = ai.age >= 2 ? 'knight' : 'lightCav';
+                if (pb.type === 'siege') candidate = 'catapult';
+
+                if (candidate) {
+                    const cost = UNIT_DEFS[candidate].cost;
+                    if ((!cost.food || ai.res.food >= cost.food) &&
+                        (!cost.wood || ai.res.wood >= cost.wood) &&
+                        (!cost.gold || ai.res.gold >= cost.gold)) {
+                        if (cost.food) ai.res.food -= cost.food;
+                        if (cost.wood) ai.res.wood -= cost.wood;
+                        if (cost.gold) ai.res.gold -= cost.gold;
+                        pb.trainQueue.push(candidate);
+                    }
+                }
+            }
+        });
+
+        if (state.time >= ai.nextWaveTime && military.length >= 4) {
+            ai.nextWaveTime = state.time + faction.attackInterval;
+            const playerTC = state.buildings.find(b => b.owner === 0 && b.type === 'townCenter');
+            const target = playerTC || state.buildings.find(b => b.owner === 0) || state.units.find(u => u.owner === 0);
+            if (target) {
+                military.forEach(m => {
+                    m.task = 'attack';
+                    m.targetId = target.id;
+                });
+            }
+        }
+    }
+
+    function checkVictoryConditions() {
+        const p0Alive = state.buildings.some(b => b.owner === 0) || state.units.some(u => u.owner === 0);
+        const p1Alive = state.buildings.some(b => b.owner === 1) || state.units.some(u => u.owner === 1);
+        if (!p1Alive) endGame(true);
+        else if (!p0Alive) endGame(false);
+    }
+
+    function endGame(victory) {
+        state.running = false;
+        const modal = document.getElementById('endModal');
+        modal.classList.remove('hidden');
+        document.getElementById('endIcon').textContent = victory ? '🏆' : '💀';
+        document.getElementById('endTitle').textContent = victory ? 'انتصار مجيد للإمبراطورية!' : 'سقطت إمبراطوريتك!';
+        document.getElementById('endDesc').textContent = victory
+            ? `لقد هزمت ${FACTION_CONFIGS[state.enemyFaction].name} في ${MAP_THEMES[state.mapType].name}!`
+            : 'تم تدمير جميع مبانيك ووحداتك. أعد بناء استراتيجيتك وحاول مجدداً!';
+        const s = state.players[0].stats;
+        const mins = Math.floor(state.time / 60);
+        const secs = Math.floor(state.time % 60);
+        document.getElementById('endStats').innerHTML = `
+            <div>⏱️ مدة المعركة: <b>${mins} دقيقة و ${secs} ثانية</b></div>
+            <div>🏛️ العصر الذي بلغته: <b>${AGES[state.players[0].age].name}</b></div>
+            <div>⚔️ الوحدات المدربة: <b>${s.trained}</b> | الأعداء المهزومون: <b>${s.killed}</b></div>
+            <div>🏗️ المباني المشيدة: <b>${s.buildingsBuilt}</b></div>
+        `;
+        if (victory) sound.playAgeUp(); else sound.playAlert();
+    }
+
+    // ==================== 10. دوال المساعدة والجزيئات ====================
+    function findEntityById(id) {
+        return state.units.find(u => u.id === id) || state.buildings.find(b => b.id === id);
+    }
+
+    function findNearestEnemy(owner, x, y, maxRange) {
+        let best = null;
+        let bestDist = maxRange;
+        state.units.forEach(u => {
+            if (u.owner !== owner) {
+                const d = Math.hypot(u.x - x, u.y - y);
+                if (d < bestDist) { bestDist = d; best = u; }
+            }
+        });
+        if (!best) {
+            state.buildings.forEach(b => {
+                if (b.owner !== owner) {
+                    const d = Math.hypot(b.x - x, b.y - y) - b.size * 0.4;
+                    if (d < bestDist) { bestDist = d; best = b; }
+                }
+            });
+        }
+        return best;
+    }
+
+    function findNearestResource(x, y, resType, maxRange) {
+        let best = null;
+        let bestDist = maxRange;
+        state.resources.forEach(r => {
+            if (r.type === resType && r.amount > 0) {
+                const d = Math.hypot(r.x - x, r.y - y);
+                if (d < bestDist) { bestDist = d; best = r; }
+            }
+        });
+        return best;
+    }
+
+    function findNearestDropoff(owner, x, y) {
+        let best = null;
+        let bestDist = Infinity;
+        state.buildings.forEach(b => {
+            if (b.owner === owner && b.completed && BUILDING_DEFS[b.type].isDropoff) {
+                const d = Math.hypot(b.x - x, b.y - y);
+                if (d < bestDist) { bestDist = d; best = b; }
+            }
+        });
+        return best;
+    }
+
+    function spawnParticles(x, y, color, count) {
+        for (let i = 0; i < count; i++) {
+            const ang = Math.random() * Math.PI * 2;
+            const spd = 25 + Math.random() * 65;
+            state.particles.push({
+                x, y,
+                vx: Math.cos(ang) * spd,
+                vy: Math.sin(ang) * spd,
+                life: 0.45 + Math.random() * 0.25,
+                color,
+                size: 3 + Math.random() * 2
+            });
+        }
+    }
+
+    function addFloatingText(x, y, text, color) {
+        state.floatingTexts.push({ x, y, text, color, life: 1.1 });
+    }
+
+    function updateParticles(dt) {
+        for (let i = state.particles.length - 1; i >= 0; i--) {
+            const p = state.particles[i];
+            p.x += p.vx * dt;
+            p.y += p.vy * dt;
+            p.life -= dt;
+            if (p.life <= 0) state.particles.splice(i, 1);
+        }
+        for (let i = state.floatingTexts.length - 1; i >= 0; i--) {
+            const ft = state.floatingTexts[i];
+            ft.y -= 24 * dt;
+            ft.life -= dt;
+            if (ft.life <= 0) state.floatingTexts.splice(i, 1);
+        }
+    }
+
+    // ==================== 11. الرسم على الكانفاس الرئيسي ====================
+    function renderWorld() {
+        const theme = MAP_THEMES[state.mapType];
+        ctx.imageSmoothingEnabled = false;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        ctx.save();
+        ctx.translate(-Math.round(state.cam.x), -Math.round(state.cam.y));
+
+        const startCol = Math.max(0, Math.floor(state.cam.x / TILE_SIZE));
+        const endCol = Math.min(MAP_COLS - 1, Math.ceil((state.cam.x + canvas.width) / TILE_SIZE));
+        const startRow = Math.max(0, Math.floor(state.cam.y / TILE_SIZE));
+        const endRow = Math.min(MAP_ROWS - 1, Math.ceil((state.cam.y + canvas.height) / TILE_SIZE));
+
+        // 1. التضاريس
+        for (let r = startRow; r <= endRow; r++) {
+            for (let c = startCol; c <= endCol; c++) {
+                const fogVal = state.fog[r][c];
+                if (fogVal === 0) {
+                    ctx.fillStyle = '#0c0907';
+                    ctx.fillRect(c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE + 1, TILE_SIZE + 1);
+                    continue;
+                }
+                if (state.terrain[r][c] === 1) {
+                    const wave = Math.floor(Math.sin(state.time * 2.5 + c * 0.6 + r * 0.4) * 2) * 5;
+                    ctx.fillStyle = `rgb(28, ${105 + wave}, ${188 + wave})`;
+                    ctx.fillRect(c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE + 1, TILE_SIZE + 1);
+                } else {
+                    ctx.fillStyle = (r + c) % 2 === 0 ? theme.ground1 : theme.ground2;
+                    ctx.fillRect(c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE + 1, TILE_SIZE + 1);
+                    if ((r * 7 + c * 13) % 5 === 0) {
+                        ctx.fillStyle = 'rgba(0,0,0,0.08)';
+                        ctx.fillRect(c * TILE_SIZE + 12, r * TILE_SIZE + 14, 4, 4);
+                        ctx.fillRect(c * TILE_SIZE + 26, r * TILE_SIZE + 28, 3, 3);
+                    }
+                }
+            }
+        }
+
+        // 2. الموارد
+        state.resources.forEach(res => {
+            const c = Math.floor(res.x / TILE_SIZE);
+            const r = Math.floor(res.y / TILE_SIZE);
+            if (r < startRow || r > endRow || c < startCol || c > endCol) return;
+            if (state.fog[r][c] === 0) return;
+
+            ctx.save();
+            ctx.translate(Math.round(res.x), Math.round(res.y));
+            ctx.fillStyle = 'rgba(0,0,0,0.32)';
+            ctx.fillRect(-12, 6, 26, 6);
+
+            if (res.type === 'animal') {
+                const animalEmoji = { sheep: '🐑', deer: '🦌', boar: '🐗', cow: '🐄' }[res.species] || '🐑';
+                ctx.font = '25px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(animalEmoji, 0, 0);
+                if (state.selectedIds.has(res.id)) {
+                    ctx.strokeStyle = '#4ade80'; ctx.lineWidth = 2;
+                    ctx.beginPath(); ctx.ellipse(0, 7, 19, 10, 0, 0, Math.PI*2); ctx.stroke();
+                }
+            } else if (res.type === 'tree') {
+                ctx.fillStyle = '#14100d';
+                ctx.fillRect(-5, -2, 10, 13);
+                ctx.fillStyle = theme.treeTrunk;
+                ctx.fillRect(-3, -1, 6, 11);
+                ctx.fillStyle = '#14100d';
+                ctx.fillRect(-14, -22, 28, 20);
+                ctx.fillRect(-10, -26, 20, 26);
+                ctx.fillStyle = theme.treeColor;
+                ctx.fillRect(-12, -20, 24, 16);
+                ctx.fillRect(-8, -24, 16, 22);
+                ctx.fillStyle = 'rgba(255,255,255,0.16)';
+                ctx.fillRect(-8, -21, 10, 6);
+            } else if (res.type === 'berry') {
+                ctx.fillStyle = '#14100d';
+                ctx.fillRect(-13, -10, 26, 18);
+                ctx.fillStyle = '#2d6a27';
+                ctx.fillRect(-11, -8, 22, 14);
+                ctx.fillStyle = '#e11d48';
+                [[-7, -3], [3, -5], [0, 2], [-6, 3], [6, 1]].forEach(([bx, by]) => ctx.fillRect(bx, by, 4, 4));
+            } else if (res.type === 'gold') {
+                ctx.fillStyle = '#14100d';
+                ctx.fillRect(-15, -8, 30, 16);
+                ctx.fillStyle = '#b45309';
+                ctx.fillRect(-13, -6, 26, 12);
+                ctx.fillStyle = '#facc15';
+                ctx.fillRect(-9, -8, 12, 8);
+                ctx.fillRect(2, -4, 7, 6);
+            } else if (res.type === 'stone') {
+                ctx.fillStyle = '#14100d';
+                ctx.fillRect(-15, -8, 30, 16);
+                ctx.fillStyle = '#475569';
+                ctx.fillRect(-13, -6, 26, 12);
+                ctx.fillStyle = '#94a3b8';
+                ctx.fillRect(-10, -9, 16, 9);
+            }
+            ctx.restore();
+        });
+
+        // 3. المباني
+        state.buildings.forEach(b => {
+            const c = Math.floor(b.x / TILE_SIZE);
+            const r = Math.floor(b.y / TILE_SIZE);
+            if (b.owner !== 0 && (!state.fog[r] || state.fog[r][c] === 0)) return;
+
+            const def = BUILDING_DEFS[b.type];
+            const half = Math.round(b.size / 2);
+            const selected = state.selectedIds.has(b.id);
+            const teamPal = pixelEngine.getTeamPalette(b.owner, state.enemyFaction);
+
+            ctx.save();
+            ctx.translate(Math.round(b.x), Math.round(b.y));
+
+            if (selected) {
+                ctx.strokeStyle = '#4ade80';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(-half - 5, -half - 5, b.size + 10, b.size + 10);
+            }
+
+            ctx.fillStyle = 'rgba(0,0,0,0.4)';
+            ctx.fillRect(-half + 6, -half + 8, b.size, b.size);
+
+            ctx.globalAlpha = b.completed ? 1 : 0.65;
+            ctx.fillStyle = '#14100d';
+            ctx.fillRect(-half, -half, b.size, b.size);
+            ctx.fillStyle = '#78716c';
+            ctx.fillRect(-half + 3, -half + 3, b.size - 6, b.size - 6);
+            ctx.fillStyle = teamPal['t'];
+            ctx.fillRect(-half + 7, -half + 7, b.size - 14, b.size - 14);
+            ctx.fillStyle = teamPal['T'];
+            ctx.fillRect(-half + 10, -half + 10, b.size - 20, Math.floor((b.size - 20) * 0.55));
+
+            if (b.type === 'townCenter') {
+                ctx.fillStyle = '#d6d3d1';
+                ctx.fillRect(-half + 4, -half + 4, 16, 16);
+                ctx.fillRect(half - 20, -half + 4, 16, 16);
+                ctx.fillRect(-half + 4, half - 20, 16, 16);
+                ctx.fillRect(half - 20, half - 20, 16, 16);
+                ctx.fillStyle = '#451a03';
+                ctx.fillRect(-12, half - 22, 24, 19);
+                const wave = Math.sin(state.time * 6) * 2;
+                ctx.fillStyle = '#fef08a';
+                ctx.fillRect(-2, -half - 16, 4, 22);
+                ctx.fillStyle = teamPal['T'];
+                ctx.fillRect(2, -half - 15 + wave, 18, 10);
+            }
+
+            ctx.font = `${Math.floor(b.size * 0.42)}px sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(def.icon, 0, 2);
+            ctx.globalAlpha = 1;
+
+            if (selected || b.hp < b.maxHp || !b.completed) {
+                const barW = b.size * 0.85;
+                const ratio = b.completed ? (b.hp / b.maxHp) : (b.buildProgress / b.buildTime);
+                ctx.fillStyle = '#14100d';
+                ctx.fillRect(-barW / 2 - 1, -half - 14, barW + 2, 7);
+                ctx.fillStyle = b.completed ? (b.owner === 0 ? '#22c55e' : '#ef4444') : '#facc15';
+                ctx.fillRect(-barW / 2, -half - 13, barW * Math.max(0, ratio), 5);
+            }
+            ctx.restore();
+        });
+
+        // 4. الوحدات بنظام البكسل المفصل (Y-Sorted)
+        const sortedUnits = [...state.units].sort((a, b) => a.y - b.y);
+        sortedUnits.forEach(u => {
+            if (u.owner !== 0 && !isVisibleToPlayer(u.x, u.y)) return;
+            const selected = state.selectedIds.has(u.id);
+
+            ctx.save();
+            ctx.translate(Math.round(u.x), Math.round(u.y));
+
+            if (selected) {
+                ctx.strokeStyle = '#4ade80';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.ellipse(0, 5, u.radius + 5, (u.radius + 5) * 0.55, 0, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+
+            ctx.fillStyle = 'rgba(0,0,0,0.38)';
+            ctx.fillRect(-u.radius + 2, 3, (u.radius - 2) * 2, 5);
+
+            pixelEngine.drawUnit(ctx, u, state.time, state.enemyFaction);
+
+            if (u.type === 'villager' && u.carryAmount > 0) {
+                const cMap = { wood: '#92400e', food: '#e11d48', gold: '#facc15', stone: '#94a3b8' };
+                ctx.fillStyle = '#14100d';
+                ctx.fillRect(u.radius * 0.5 - 1, -u.radius - 13, 9, 9);
+                ctx.fillStyle = cMap[u.carryType] || '#fff';
+                ctx.fillRect(u.radius * 0.5, -u.radius - 12, 7, 7);
+            }
+
+            if (selected || u.hp < u.maxHp) {
+                const bw = Math.max(24, u.radius * 2);
+                ctx.fillStyle = '#14100d';
+                ctx.fillRect(-bw / 2 - 1, -u.radius - 22, bw + 2, 5);
+                ctx.fillStyle = u.owner === 0 ? '#22c55e' : '#ef4444';
+                ctx.fillRect(-bw / 2, -u.radius - 21, bw * Math.max(0, u.hp / u.maxHp), 3);
+            }
+            ctx.restore();
+        });
+
+        // 5. المقذوفات (السهام وصخور المنجنيق)
+        state.projectiles.forEach(p => {
+            if (!isVisibleToPlayer(p.x, p.y) && p.owner !== 0) return;
+            ctx.save();
+            ctx.translate(Math.round(p.x), Math.round(p.y));
+            if (p.type === 'boulder') {
+                ctx.fillStyle = '#14100d';
+                ctx.fillRect(-7, -7, 14, 14);
+                ctx.fillStyle = '#f97316';
+                ctx.fillRect(-5, -5, 10, 10);
+                ctx.fillStyle = '#fde047';
+                ctx.fillRect(-3, -3, 6, 6);
+            } else {
+                const ang = Math.atan2(p.ty - p.y, p.tx - p.x);
+                ctx.rotate(ang);
+                ctx.fillStyle = '#fef3c7';
+                ctx.fillRect(-7, -1, 14, 2);
+                ctx.fillStyle = '#94a3b8';
+                ctx.fillRect(5, -2, 4, 4);
+            }
+            ctx.restore();
+        });
+
+        // 6. الجزيئات والنصوص العائمة
+        state.particles.forEach(pt => {
+            ctx.fillStyle = pt.color;
+            ctx.fillRect(Math.round(pt.x), Math.round(pt.y), Math.round(pt.size), Math.round(pt.size));
+        });
+
+        state.floatingTexts.forEach(ft => {
+            ctx.globalAlpha = Math.max(0, ft.life);
+            ctx.font = 'bold 13px sans-serif';
+            ctx.fillStyle = ft.color;
+            ctx.textAlign = 'center';
+            ctx.fillText(ft.text, ft.x, ft.y);
+        });
+        ctx.globalAlpha = 1;
+
+        // 7. معاينة وضع البناء
+        if (state.buildMode) {
+            const def = BUILDING_DEFS[state.buildMode];
+            const half = def.size / 2;
+            const valid = canPlaceBuilding(state.mouse.worldX, state.mouse.worldY, def.size);
+            ctx.fillStyle = valid ? 'rgba(34, 197, 94, 0.35)' : 'rgba(239, 68, 68, 0.45)';
+            ctx.strokeStyle = valid ? '#4ade80' : '#f87171';
+            ctx.lineWidth = 2;
+            ctx.fillRect(state.mouse.worldX - half, state.mouse.worldY - half, def.size, def.size);
+            ctx.strokeRect(state.mouse.worldX - half, state.mouse.worldY - half, def.size, def.size);
+        }
+
+        // 8. ضباب الحرب للمناطق المستكشفة
+        for (let r = startRow; r <= endRow; r++) {
+            for (let c = startCol; c <= endCol; c++) {
+                if (state.fog[r][c] === 1) {
+                    ctx.fillStyle = 'rgba(10, 8, 6, 0.48)';
+                    ctx.fillRect(c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE + 1, TILE_SIZE + 1);
+                }
+            }
+        }
+
+        ctx.restore();
+
+        // 9. مربع التحديد بالسحب
+        if (state.mouse.isDragging && state.mouse.dragStart) {
+            const sx = Math.min(state.mouse.dragStart.x, state.mouse.x);
+            const sy = Math.min(state.mouse.dragStart.y, state.mouse.y);
+            const sw = Math.abs(state.mouse.x - state.mouse.dragStart.x);
+            const sh = Math.abs(state.mouse.y - state.mouse.dragStart.y);
+            ctx.strokeStyle = '#4ade80';
+            ctx.lineWidth = 1.5;
+            ctx.fillStyle = 'rgba(74, 222, 128, 0.15)';
+            ctx.fillRect(sx, sy, sw, sh);
+            ctx.strokeRect(sx, sy, sw, sh);
+        }
+    }
+
+    // ==================== 12. الخريطة المصغرة Minimap ====================
+    function renderMinimap() {
+        const w = minimapCanvas.width;
+        const h = minimapCanvas.height;
+        const theme = MAP_THEMES[state.mapType];
+        const scaleX = w / WORLD_W;
+        const scaleY = h / WORLD_H;
+
+        mctx.fillStyle = '#090705';
+        mctx.fillRect(0, 0, w, h);
+
+        const tileW = w / MAP_COLS;
+        const tileH = h / MAP_ROWS;
+
+        for (let r = 0; r < MAP_ROWS; r++) {
+            for (let c = 0; c < MAP_COLS; c++) {
+                const fog = state.fog[r][c];
+                if (fog === 0) continue;
+                mctx.fillStyle = state.terrain[r][c] === 1 ? '#2563eb' : theme.ground1;
+                if (fog === 1) mctx.globalAlpha = 0.5;
+                mctx.fillRect(c * tileW, r * tileH, tileW + 0.6, tileH + 0.6);
+                mctx.globalAlpha = 1;
+            }
+        }
+
+        state.resources.forEach(res => {
+            const c = Math.floor(res.x / TILE_SIZE);
+            const r = Math.floor(res.y / TILE_SIZE);
+            if (!state.fog[r] || state.fog[r][c] === 0) return;
+            mctx.fillStyle = res.type === 'gold' ? '#facc15' : (res.type === 'tree' ? '#14532d' : (res.type === 'animal' ? '#f97316' : '#cbd5e1'));
+            mctx.fillRect(res.x * scaleX - 1, res.y * scaleY - 1, 2.2, 2.2);
+        });
+
+        state.buildings.forEach(b => {
+            const c = Math.floor(b.x / TILE_SIZE);
+            const r = Math.floor(b.y / TILE_SIZE);
+            if (b.owner !== 0 && (!state.fog[r] || state.fog[r][c] === 0)) return;
+            mctx.fillStyle = b.owner === 0 ? '#60a5fa' : '#f87171';
+            mctx.fillRect(b.x * scaleX - 3, b.y * scaleY - 3, 6, 6);
+        });
+
+        state.units.forEach(u => {
+            if (u.owner !== 0 && !isVisibleToPlayer(u.x, u.y)) return;
+            mctx.fillStyle = u.owner === 0 ? '#93c5fd' : '#fca5a5';
+            mctx.fillRect(u.x * scaleX - 1.5, u.y * scaleY - 1.5, 3, 3);
+        });
+
+        mctx.strokeStyle = '#fde047';
+        mctx.lineWidth = 1.2;
+        mctx.strokeRect(
+            state.cam.x * scaleX,
+            state.cam.y * scaleY,
+            canvas.width * scaleX,
+            canvas.height * scaleY
+        );
+    }
+
+    function canPlaceBuilding(wx, wy, size) {
+        const half = size / 2;
+        if (wx - half < 30 || wx + half > WORLD_W - 30 || wy - half < 30 || wy + half > WORLD_H - 30) return false;
+        const c = Math.floor(wx / TILE_SIZE);
+        const r = Math.floor(wy / TILE_SIZE);
+        if (!state.fog[r] || state.fog[r][c] === 0) return false;
+        if (state.terrain[r][c] === 1) return false;
+
+        for (const b of state.buildings) {
+            if (Math.abs(b.x - wx) < (b.size + size) * 0.52 && Math.abs(b.y - wy) < (b.size + size) * 0.52) return false;
+        }
+        for (const res of state.resources) {
+            if (Math.hypot(res.x - wx, res.y - wy) < half + res.radius + 6) return false;
+        }
+        return true;
+    }
+
+    // ==================== 13. تحديث واجهة المستخدم (HUD) ====================
+    function updateUI() {
+        const p = state.players[0];
+        document.getElementById('resWood').textContent = Math.floor(p.res.wood);
+        document.getElementById('resFood').textContent = Math.floor(p.res.food);
+        document.getElementById('resGold').textContent = Math.floor(p.res.gold);
+        document.getElementById('resStone').textContent = Math.floor(p.res.stone);
+        document.getElementById('resPop').textContent = `${p.pop}/${p.maxPop}`;
+        document.getElementById('ageDisplay').textContent = p.agingUp
+            ? `جارٍ التطور (${Math.floor((p.ageProgress / 14) * 100)}%)`
+            : AGES[p.age].name;
+
+        const idleVillagers = state.units.filter(u => u.owner === 0 && u.type === 'villager' && u.task === 'idle');
+        document.getElementById('idleVillagerCount').textContent = idleVillagers.length;
+
+        renderSelectionAndActions();
+    }
+
+    let lastSelectionSignature = '';
+    function renderSelectionAndActions() {
+        const selectedUnits = state.units.filter(u => state.selectedIds.has(u.id));
+        const selectedBuildings = state.buildings.filter(b => state.selectedIds.has(b.id));
+        const p = state.players[0];
+
+        const sig = [
+            selectedUnits.map(u => `${u.id}:${Math.floor(u.hp)}`).join(','),
+            selectedBuildings.map(b => `${b.id}:${Math.floor(b.hp)}:${b.completed}:${b.trainQueue.length}`).join(','),
+            p.age, p.agingUp, Math.floor(p.res.wood / 10), Math.floor(p.res.food / 10), Math.floor(p.res.gold / 10), Math.floor(p.res.stone / 10),
+            state.buildMode
+        ].join('|');
+
+        if (sig === lastSelectionSignature) return;
+        lastSelectionSignature = sig;
+
+        const infoEl = document.getElementById('selectionInfo');
+        const gridEl = document.getElementById('actionGrid');
+        const titleEl = document.getElementById('actionPanelTitle');
+        gridEl.innerHTML = '';
+
+        if (selectedUnits.length > 0) {
+            const first = selectedUnits[0];
+            const def = UNIT_DEFS[first.type];
+            const isOwned = first.owner === 0;
+
+            if (selectedUnits.length === 1) {
+                const totalDmg = def.damage + (isOwned ? p.upgrades.attack * 3 : 0);
+                const totalArm = def.armor + (isOwned ? p.upgrades.armor * 2 : 0);
+                infoEl.innerHTML = `
+                    <div class="flex items-center gap-2.5">
+                        <div class="text-3xl bg-black/50 p-2 rounded-lg border border-amber-700/60">${def.icon}</div>
+                        <div>
+                            <div class="font-bold text-sm text-amber-300">${def.name} ${isOwned ? '' : '<span class="text-red-400">(عدو)</span>'}</div>
+                            <div class="text-[11px] text-emerald-300">الصحة: ${Math.ceil(first.hp)} / ${first.maxHp}</div>
+                            <div class="text-[11px] text-amber-100/80">⚔️ الهجوم: ${totalDmg} | 🛡️ الدرع: ${totalArm}</div>
+                        </div>
+                    </div>
+                    <div class="text-[11px] text-amber-100/75 bg-black/35 p-1.5 rounded mt-1">${def.desc}</div>
+                `;
+            } else {
+                infoEl.innerHTML = `
+                    <div class="font-bold text-xs text-amber-300 mb-1">تم تحديد ${selectedUnits.length} وحدات:</div>
+                    <div class="flex flex-wrap gap-1 overflow-y-auto max-h-[95px]">
+                        ${selectedUnits.slice(0, 18).map(u => `
+                            <div class="bg-black/50 border border-amber-700/50 rounded px-1.5 py-0.5 text-xs flex items-center gap-1">
+                                <span>${UNIT_DEFS[u.type].icon}</span>
+                                <span class="text-[10px] text-emerald-300">${Math.ceil((u.hp / u.maxHp) * 100)}%</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+
+            const hasVillager = isOwned && selectedUnits.some(u => u.type === 'villager');
+            if (hasVillager) {
+                titleEl.textContent = '🏗️ تشييد المباني';
+                Object.entries(BUILDING_DEFS).forEach(([bKey, bDef]) => {
+                    const unlocked = p.age >= bDef.minAge;
+                    const affordable = canAfford(p.res, bDef.cost);
+                    const btn = createActionButton(
+                        bDef.icon, bDef.name, formatCost(bDef.cost),
+                        unlocked && affordable,
+                        () => {
+                            state.buildMode = bKey;
+                            lastSelectionSignature = '';
+                            showToast(`اختر موقع بناء ${bDef.name} على الخريطة`, 'amber');
+                        },
+                        bDef.desc
+                    );
+                    gridEl.appendChild(btn);
+                });
+            } else if (isOwned) {
+                titleEl.textContent = '⚔️ أوامر الجيش';
+                gridEl.appendChild(createActionButton('🛑', 'توقف', 'إيقاف الحركة', true, () => {
+                    selectedUnits.forEach(u => { u.task = 'idle'; u.targetPos = null; u.targetId = null; });
+                }, 'إيقاف الوحدات المحددة فوراً'));
+            }
+        } else if (selectedBuildings.length > 0) {
+            const b = selectedBuildings[0];
+            const def = BUILDING_DEFS[b.type];
+            const isOwned = b.owner === 0;
+
+            infoEl.innerHTML = `
+                <div class="flex items-center gap-2.5">
+                    <div class="text-3xl bg-black/50 p-2 rounded-lg border border-amber-700/60">${def.icon}</div>
+                    <div>
+                        <div class="font-bold text-sm text-amber-300">${def.name} ${isOwned ? '' : '<span class="text-red-400">(عدو)</span>'}</div>
+                        <div class="text-[11px] text-emerald-300">المتانة: ${Math.ceil(b.hp)} / ${b.maxHp}</div>
+                        ${!b.completed ? `<div class="text-[11px] text-yellow-300">قيد الإنشاء: ${Math.floor((b.buildProgress / b.buildTime) * 100)}%</div>` : ''}
+                        ${b.trainQueue.length > 0 ? `<div class="text-[11px] text-sky-300">التدريب (${b.trainQueue.length}): ${UNIT_DEFS[b.trainQueue[0]].name}</div>` : ''}
+                    </div>
+                </div>
+                <div class="text-[11px] text-amber-100/75 bg-black/35 p-1.5 rounded mt-1">${def.desc}</div>
+            `;
+
+            if (isOwned && b.completed) {
+                titleEl.textContent = `🏛️ إدارة ${def.name}`;
+                const unitMap = {
+                    townCenter: ['villager'],
+                    barracks: ['spearman', 'swordsman'],
+                    archery: ['archer', 'crossbow'],
+                    stable: ['lightCav', 'knight'],
+                    siege: ['catapult']
+                };
+
+                (unitMap[b.type] || []).forEach(uKey => {
+                    const uDef = UNIT_DEFS[uKey];
+                    const unlocked = p.age >= uDef.minAge;
+                    const affordable = canAfford(p.res, uDef.cost) && p.pop < p.maxPop;
+                    gridEl.appendChild(createActionButton(
+                        uDef.icon, uDef.name, formatCost(uDef.cost),
+                        unlocked && affordable,
+                        () => trainUnitFromBuilding(b, uKey),
+                        uDef.desc
+                    ));
+                });
+
+                if (b.type === 'townCenter') {
+                    if (p.age < AGES.length - 1) {
+                        const nextAge = AGES[p.age + 1];
+                        const canAge = !p.agingUp && canAfford(p.res, nextAge.cost);
+                        gridEl.appendChild(createActionButton(
+                            '👑', nextAge.name, formatCost(nextAge.cost), canAge,
+                            () => {
+                                spendResources(p.res, nextAge.cost);
+                                p.agingUp = true;
+                                p.ageProgress = 0;
+                                sound.playSelect();
+                                showToast(`بدأ التطور إلى ${nextAge.name}...`, 'amber');
+                            },
+                            `الارتقاء إلى ${nextAge.name} لفتح وحدات ومبانٍ متطورة.`
+                        ));
+                    }
+
+                    Object.entries(UPGRADES).forEach(([upKey, upDef]) => {
+                        const lvl = p.upgrades[upKey];
+                        if (lvl < upDef.maxLevel) {
+                            const cost = {};
+                            Object.entries(upDef.baseCost).forEach(([k, v]) => cost[k] = Math.floor(v * (1 + lvl * 0.55)));
+                            gridEl.appendChild(createActionButton(
+                                upDef.icon, `${upDef.name} (${lvl + 1})`, formatCost(cost),
+                                canAfford(p.res, cost),
+                                () => {
+                                    spendResources(p.res, cost);
+                                    p.upgrades[upKey]++;
+                                    sound.playAgeUp();
+                                    showToast(`تمت ترقية: ${upDef.name} إلى المستوى ${p.upgrades[upKey]}!`, 'green');
+                                },
+                                upDef.desc
+                            ));
+                        }
+                    });
+                }
+            }
+        } else {
+            titleEl.textContent = 'الأوامر المتاحة';
+            infoEl.innerHTML = `<div class="text-center text-amber-200/60 text-xs my-auto">انقر على عامل لبناء المباني أو جمع الموارد، أو انقر على مركز المدينة لتدريب العمال.</div>`;
+        }
+    }
+
+    function createActionButton(icon, label, costStr, enabled, onClick, tooltip) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'aoe-btn rounded p-1.5 flex flex-col items-center justify-center text-center leading-tight';
+        btn.disabled = !enabled;
+        btn.innerHTML = `
+            <span class="text-base md:text-lg">${icon}</span>
+            <span class="text-[10px] font-bold text-amber-200 truncate w-full mt-0.5">${label}</span>
+            <span class="text-[9px] text-amber-100/80 truncate w-full">${costStr}</span>
+        `;
+        btn.addEventListener('mouseenter', () => {
+            document.getElementById('tooltipText').textContent = tooltip;
+        });
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            onClick();
+            lastSelectionSignature = '';
+            updateUI();
+        });
+        return btn;
+    }
+
+    function canAfford(res, cost) {
+        return Object.entries(cost).every(([k, v]) => (res[k] || 0) >= v);
+    }
+    function spendResources(res, cost) {
+        Object.entries(cost).forEach(([k, v]) => { res[k] -= v; });
+    }
+    function formatCost(cost) {
+        const icons = { wood: '🪵', food: '🍖', gold: '🪙', stone: '🪨' };
+        return Object.entries(cost).map(([k, v]) => `${icons[k]}${v}`).join(' ');
+    }
+
+    function trainUnitFromBuilding(b, unitKey) {
+        const p = state.players[0];
+        const uDef = UNIT_DEFS[unitKey];
+        if (!canAfford(p.res, uDef.cost)) return;
+        if (p.pop >= p.maxPop) {
+            showToast('⚠️ الحد الأقصى للسكان ممتلئ! ابنِ المزيد من المنازل.', 'red');
+            return;
+        }
+        spendResources(p.res, uDef.cost);
+        b.trainQueue.push(unitKey);
+        sound.playSelect();
+    }
+
+    // ==================== 14. التفاعل بالماوس واللمس ولوحة المفاتيح ====================
+    canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+    canvas.addEventListener('mousedown', e => {
+        if (!state.running) return;
+        sound.init();
+        updateMousePos(e);
+
+        if (e.button === 0) {
+            if (state.buildMode) {
+                placeBuildingAt(state.mouse.worldX, state.mouse.worldY);
+                return;
+            }
+            state.mouse.down = true;
+            state.mouse.dragStart = { x: state.mouse.x, y: state.mouse.y };
+            state.mouse.isDragging = false;
+        } else if (e.button === 2) {
+            if (state.buildMode) {
+                state.buildMode = null;
+                lastSelectionSignature = '';
+                return;
+            }
+            issueContextCommand(state.mouse.worldX, state.mouse.worldY);
+        }
+    });
+
+    canvas.addEventListener('mousemove', e => {
+        updateMousePos(e);
+        if (state.mouse.down && state.mouse.dragStart) {
+            if (Math.hypot(state.mouse.x - state.mouse.dragStart.x, state.mouse.y - state.mouse.dragStart.y) > 8) {
+                state.mouse.isDragging = true;
+            }
+        }
+    });
+
+    canvas.addEventListener('mouseup', e => {
+        if (!state.running || e.button !== 0) return;
+        updateMousePos(e);
+
+        if (state.mouse.isDragging && state.mouse.dragStart) {
+            selectInBox(
+                Math.min(state.mouse.dragStart.x, state.mouse.x) + state.cam.x,
+                Math.min(state.mouse.dragStart.y, state.mouse.y) + state.cam.y,
+                Math.max(state.mouse.dragStart.x, state.mouse.x) + state.cam.x,
+                Math.max(state.mouse.dragStart.y, state.mouse.y) + state.cam.y
+            );
+        } else if (state.mouse.down) {
+            if (state.actionOrderMode && state.selectedIds.size > 0) {
+                issueContextCommand(state.mouse.worldX, state.mouse.worldY);
+            } else {
+                selectSingleAt(state.mouse.worldX, state.mouse.worldY, e.shiftKey);
+            }
+        }
+
+        state.mouse.down = false;
+        state.mouse.isDragging = false;
+        state.mouse.dragStart = null;
+        lastSelectionSignature = '';
+        updateUI();
+    });
+
+    canvas.addEventListener('dblclick', e => {
+        if (!state.running) return;
+        updateMousePos(e);
+        const clickedUnit = state.units.find(u => u.owner === 0 && Math.hypot(u.x - state.mouse.worldX, u.y - state.mouse.worldY) <= u.radius + 8);
+        if (clickedUnit) {
+            state.selectedIds.clear();
+            state.units.forEach(u => {
+                if (u.owner === 0 && u.type === clickedUnit.type &&
+                    u.x >= state.cam.x && u.x <= state.cam.x + canvas.width &&
+                    u.y >= state.cam.y && u.y <= state.cam.y + canvas.height) {
+                    state.selectedIds.add(u.id);
+                }
+            });
+            sound.playSelect();
+            lastSelectionSignature = '';
+            updateUI();
+        }
+    });
+
+    // دعم اللمس للهواتف والأجهزة اللوحية
+    let touchStartPos = null;
+    let camStartPos = null;
+    let isTouchPanning = false;
+
+    canvas.addEventListener('touchstart', e => {
+        if (!state.running || e.touches.length === 0) return;
+        sound.init();
+        const t = e.touches[0];
+        touchStartPos = { x: t.clientX, y: t.clientY };
+        camStartPos = { x: state.cam.x, y: state.cam.y };
+        isTouchPanning = false;
+        state.mouse.x = t.clientX;
+        state.mouse.y = t.clientY;
+        state.mouse.worldX = t.clientX + state.cam.x;
+        state.mouse.worldY = t.clientY + state.cam.y;
+    }, { passive: true });
+
+    canvas.addEventListener('touchmove', e => {
+        if (!state.running || !touchStartPos || e.touches.length === 0) return;
+        const t = e.touches[0];
+        const dx = t.clientX - touchStartPos.x;
+        const dy = t.clientY - touchStartPos.y;
+        if (Math.hypot(dx, dy) > 12) {
+            isTouchPanning = true;
+            state.cam.x = Math.max(0, Math.min(WORLD_W - canvas.width, camStartPos.x - dx));
+            state.cam.y = Math.max(0, Math.min(WORLD_H - canvas.height, camStartPos.y - dy));
+        }
+        state.mouse.x = t.clientX;
+        state.mouse.y = t.clientY;
+        state.mouse.worldX = t.clientX + state.cam.x;
+        state.mouse.worldY = t.clientY + state.cam.y;
+    }, { passive: false });
+
+    canvas.addEventListener('touchend', () => {
+        if (!state.running) return;
+        if (!isTouchPanning && touchStartPos) {
+            const wx = touchStartPos.x + state.cam.x;
+            const wy = touchStartPos.y + state.cam.y;
+            if (state.buildMode) {
+                placeBuildingAt(wx, wy);
+            } else if (state.actionOrderMode && state.selectedIds.size > 0) {
+                issueContextCommand(wx, wy);
+            } else {
+                const enemyUnit = state.units.find(u => u.owner !== 0 && isVisibleToPlayer(u.x, u.y) && Math.hypot(u.x - wx, u.y - wy) <= u.radius + 14);
+                const enemyBld = state.buildings.find(b => b.owner !== 0 && Math.abs(b.x - wx) <= b.size * 0.55 && Math.abs(b.y - wy) <= b.size * 0.55);
+                const res = state.resources.find(r => Math.hypot(r.x - wx, r.y - wy) <= r.radius + 14);
+                if (state.selectedIds.size > 0 && (enemyUnit || enemyBld || res)) {
+                    issueContextCommand(wx, wy);
+                } else {
+                    selectSingleAt(wx, wy, false);
+                }
+            }
+            lastSelectionSignature = '';
+            updateUI();
+        }
+        touchStartPos = null;
+        isTouchPanning = false;
+    });
+
+    minimapCanvas.addEventListener('mousedown', e => {
+        const rect = minimapCanvas.getBoundingClientRect();
+        const wx = ((e.clientX - rect.left) / rect.width) * WORLD_W;
+        const wy = ((e.clientY - rect.top) / rect.height) * WORLD_H;
+        if (e.button === 0) centerCameraOn(wx, wy);
+        else if (e.button === 2) issueContextCommand(wx, wy);
+    });
+    minimapCanvas.addEventListener('contextmenu', e => e.preventDefault());
+
+    function updateMousePos(e) {
+        state.mouse.x = e.clientX;
+        state.mouse.y = e.clientY;
+        state.mouse.worldX = e.clientX + state.cam.x;
+        state.mouse.worldY = e.clientY + state.cam.y;
+    }
+
+    function selectSingleAt(wx, wy, additive) {
+        if (!additive) state.selectedIds.clear();
+
+        const ownUnit = state.units.find(u => u.owner === 0 && Math.hypot(u.x - wx, u.y - wy) <= u.radius + 8);
+        if (ownUnit) {
+            state.selectedIds.add(ownUnit.id);
+            sound.playSelect();
+            return;
+        }
+        const ownBld = state.buildings.find(b => b.owner === 0 && Math.abs(b.x - wx) <= b.size * 0.52 && Math.abs(b.y - wy) <= b.size * 0.52);
+        if (ownBld) {
+            state.selectedIds.add(ownBld.id);
+            sound.playSelect();
+            return;
+        }
+        const enemyUnit = state.units.find(u => u.owner !== 0 && isVisibleToPlayer(u.x, u.y) && Math.hypot(u.x - wx, u.y - wy) <= u.radius + 8);
+        if (enemyUnit) {
+            state.selectedIds.add(enemyUnit.id);
+            return;
+        }
+        const enemyBld = state.buildings.find(b => b.owner !== 0 && Math.abs(b.x - wx) <= b.size * 0.52 && Math.abs(b.y - wy) <= b.size * 0.52);
+        if (enemyBld) state.selectedIds.add(enemyBld.id);
+    }
+
+    function selectInBox(x1, y1, x2, y2) {
+        state.selectedIds.clear();
+        state.units.forEach(u => {
+            if (u.owner === 0 && u.x >= x1 && u.x <= x2 && u.y >= y1 && u.y <= y2) {
+                state.selectedIds.add(u.id);
+            }
+        });
+        if (state.selectedIds.size > 0) sound.playSelect();
+    }
+
+    function placeBuildingAt(wx, wy) {
+        const bKey = state.buildMode;
+        const def = BUILDING_DEFS[bKey];
+        const p = state.players[0];
+
+        if (!canPlaceBuilding(wx, wy, def.size)) {
+            showToast('❌ موقع غير صالح للبناء!', 'red');
+            return;
+        }
+        if (!canAfford(p.res, def.cost)) {
+            showToast('❌ مواردك غير كافية!', 'red');
+            state.buildMode = null;
+            return;
+        }
+
+        spendResources(p.res, def.cost);
+        const bld = spawnBuilding(0, bKey, wx, wy, false);
+        state.buildMode = null;
+        sound.playBuild();
+
+        state.units.forEach(u => {
+            if (state.selectedIds.has(u.id) && u.owner === 0 && u.type === 'villager') {
+                u.task = 'build';
+                u.targetId = bld.id;
+            }
+        });
+        lastSelectionSignature = '';
+        updateUI();
+    }
+
+    function issueContextCommand(wx, wy) {
+        const selectedUnits = state.units.filter(u => state.selectedIds.has(u.id) && u.owner === 0);
+        const selectedBuildings = state.buildings.filter(b => state.selectedIds.has(b.id) && b.owner === 0);
+
+        if (selectedUnits.length > 0) {
+            const targetEnemy =
+                state.units.find(u => u.owner !== 0 && isVisibleToPlayer(u.x, u.y) && Math.hypot(u.x - wx, u.y - wy) <= u.radius + 10) ||
+                state.buildings.find(b => b.owner !== 0 && Math.abs(b.x - wx) <= b.size * 0.55 && Math.abs(b.y - wy) <= b.size * 0.55);
+
+            if (targetEnemy) {
+                selectedUnits.forEach(u => { u.task = 'attack'; u.targetId = targetEnemy.id; });
+                spawnParticles(wx, wy, '#ef4444', 5);
+                sound.playCommand();
+                return;
+            }
+
+            const ownBld = state.buildings.find(b => b.owner === 0 && Math.abs(b.x - wx) <= b.size * 0.55 && Math.abs(b.y - wy) <= b.size * 0.55);
+            if (ownBld && (!ownBld.completed || ownBld.hp < ownBld.maxHp)) {
+                selectedUnits.forEach(u => {
+                    if (u.type === 'villager') { u.task = 'build'; u.targetId = ownBld.id; }
+                });
+                sound.playCommand();
+                return;
+            }
+
+            const res = state.resources.find(r => Math.hypot(r.x - wx, r.y - wy) <= r.radius + 12);
+            if (res) {
+                selectedUnits.forEach(u => {
+                    if (u.type === 'villager') {
+                        u.task = 'gather';
+                        u.targetId = res.id;
+                    } else {
+                        u.task = 'move';
+                        u.targetPos = { x: wx, y: wy };
+                    }
+                });
+                spawnParticles(res.x, res.y, '#facc15', 4);
+                sound.playCommand();
+                return;
+            }
+
+            const cols = Math.ceil(Math.sqrt(selectedUnits.length));
+            selectedUnits.forEach((u, idx) => {
+                const row = Math.floor(idx / cols);
+                const col = idx % cols;
+                u.task = 'move';
+                u.targetPos = {
+                    x: wx + (col - cols / 2) * 26,
+                    y: wy + (row - cols / 2) * 26
+                };
+            });
+            spawnParticles(wx, wy, '#4ade80', 4);
+            sound.playCommand();
+        } else if (selectedBuildings.length > 0) {
+            selectedBuildings.forEach(b => { b.rallyPoint = { x: wx, y: wy }; });
+            spawnParticles(wx, wy, '#38bdf8', 5);
+            sound.playCommand();
+        }
+    }
+
+    // ==================== 15. أزرار الشريط العلوي والاختصارات ====================
+    document.getElementById('idleVillagerBtn').addEventListener('click', () => {
+        const idle = state.units.find(u => u.owner === 0 && u.type === 'villager' && u.task === 'idle');
+        if (idle) {
+            state.selectedIds.clear();
+            state.selectedIds.add(idle.id);
+            centerCameraOn(idle.x, idle.y);
+            sound.playSelect();
+            lastSelectionSignature = '';
+            updateUI();
+        } else {
+            showToast('جميع العمال يعملون بنشاط!', 'green');
+        }
+    });
+
+    document.getElementById('tcFocusBtn').addEventListener('click', () => {
+        const tc = state.buildings.find(b => b.owner === 0 && b.type === 'townCenter');
+        if (tc) {
+            state.selectedIds.clear();
+            state.selectedIds.add(tc.id);
+            centerCameraOn(tc.x, tc.y);
+            sound.playSelect();
+            lastSelectionSignature = '';
+            updateUI();
+        }
+    });
+
+    document.getElementById('actionModeBtn').addEventListener('click', (e) => {
+        state.actionOrderMode = !state.actionOrderMode;
+        e.currentTarget.textContent = state.actionOrderMode ? '🎯 أوامر' : '👆 تحديد';
+        e.currentTarget.classList.toggle('border-amber-400', state.actionOrderMode);
+    });
+
+    document.getElementById('pauseBtn').addEventListener('click', (e) => {
+        state.paused = !state.paused;
+        e.currentTarget.textContent = state.paused ? '▶️' : '⏸️';
+        showToast(state.paused ? 'تم إيقاف اللعبة مؤقتاً' : 'تم استئناف المعركة', 'amber');
+    });
+
+    document.getElementById('soundToggleBtn').addEventListener('click', (e) => {
+        sound.muted = !sound.muted;
+        e.currentTarget.textContent = sound.muted ? '🔇' : '🔊';
+    });
+
+    window.addEventListener('keydown', e => {
+        state.keys[e.code] = true;
+        if (!state.running) return;
+
+        if (e.code === 'Escape') {
+            state.buildMode = null;
+            state.selectedIds.clear();
+            lastSelectionSignature = '';
+            updateUI();
+        } else if (e.code === 'KeyH') {
+            document.getElementById('tcFocusBtn').click();
+        } else if (e.code === 'Period') {
+            document.getElementById('idleVillagerBtn').click();
+        } else if (e.code >= 'Digit1' && e.code <= 'Digit5') {
+            const num = e.code.replace('Digit', '');
+            if (e.ctrlKey) {
+                state.controlGroups[num] = new Set(state.selectedIds);
+                showToast(`تم حفظ المجموعة ${num}`, 'amber');
+            } else if (state.controlGroups[num]) {
+                state.selectedIds = new Set(state.controlGroups[num]);
+                lastSelectionSignature = '';
+                updateUI();
+            }
+        }
+    });
+    window.addEventListener('keyup', e => { state.keys[e.code] = false; });
+
+
+    // ==================== 11. نظام الحفظ والتحميل ====================
+    const SAVE_PREFIX = 'aoe_pixel_save_';
+    const SAVE_SLOTS = ['auto', '1', '2', '3'];
+    const SAVE_VERSION = 1;
+    let autoSaveTimer = 0;
+
+    function buildSaveData() {
+        return {
+            v: SAVE_VERSION, savedAt: Date.now(),
+            idCounter: entityIdCounter,
+            s: {
+                time: state.time, mapType: state.mapType, enemyFaction: state.enemyFaction,
+                difficulty: state.difficulty, cam: state.cam, players: state.players,
+                terrain: state.terrain, fog: state.fog, resources: state.resources,
+                buildings: state.buildings, units: state.units, projectiles: state.projectiles,
+                controlGroups: state.controlGroups
+            }
+        };
+    }
+    function slotKey(slot) { return SAVE_PREFIX + slot; }
+    function readSlot(slot) {
+        try {
+            const raw = localStorage.getItem(slotKey(slot));
+            return raw ? JSON.parse(raw) : null;
+        } catch (e) { return null; }
+    }
+    function saveToSlot(slot, silent) {
+        if (!state.running) { if (!silent) showToast('لا توجد معركة جارية لحفظها', 'red'); return false; }
+        try {
+            localStorage.setItem(slotKey(slot), JSON.stringify(buildSaveData()));
+            if (!silent) showToast('✅ تم حفظ اللعبة', 'green');
+            return true;
+        } catch (e) {
+            if (!silent) showToast('تعذّر الحفظ (الذاكرة ممتلئة؟)', 'red');
+            return false;
+        }
+    }
+    function applySaveData(data) {
+        if (!data || !data.s || !data.s.players || !data.s.units) throw new Error('bad save');
+        const d = data.s;
+        state.time = d.time; state.mapType = d.mapType; state.enemyFaction = d.enemyFaction;
+        state.difficulty = d.difficulty; state.cam = d.cam; state.players = d.players;
+        state.terrain = d.terrain; state.fog = d.fog; state.resources = d.resources;
+        state.buildings = d.buildings; state.units = d.units; state.projectiles = d.projectiles || [];
+        state.controlGroups = d.controlGroups || {};
+        state.particles = []; state.floatingTexts = [];
+        state.selectedIds = new Set(); state.buildMode = null; state.actionOrderMode = false;
+        state.paused = false; state.running = true;
+        entityIdCounter = data.idCounter || 1;
+        document.getElementById('startMenu').classList.add('hidden');
+        document.getElementById('endModal').classList.add('hidden');
+        document.getElementById('gameUI').classList.remove('hidden');
+        document.getElementById('saveModal').classList.add('hidden');
+        const faction = FACTION_CONFIGS[state.enemyFaction];
+        document.getElementById('enemyInfoDisplay').textContent = `${faction.name} (${faction.desc})`;
+        const pb = document.getElementById('pauseBtn'); if (pb) pb.textContent = '⏸️';
+        resizeCanvas();
+        updatePopulations();
+        lastSelectionSignature = '';
+        updateUI();
+        renderSelectionAndActions();
+        startLoop();
+    }
+    function loadFromSlot(slot) {
+        const data = readSlot(slot);
+        if (!data) { showToast('الخانة فارغة', 'red'); return; }
+        try {
+            sound.init();
+            applySaveData(data);
+            showToast('📂 تم تحميل اللعبة', 'green');
+        } catch (e) {
+            console.error(e);
+            showToast('ملف الحفظ تالف', 'red');
+        }
+    }
+    function describeSave(data) {
+        if (!data) return 'فارغة';
+        const m = Math.floor(data.s.time / 60), sec = Math.floor(data.s.time % 60);
+        const age = AGES[data.s.players[0].age].name;
+        const dt = new Date(data.savedAt).toLocaleString('ar');
+        return `${MAP_THEMES[data.s.mapType].name} • ${age} • ${m}:${String(sec).padStart(2, '0')}<br><span class="opacity-70">${dt}</span>`;
+    }
+    function slotLabel(slot) { return slot === 'auto' ? '🔄 الحفظ التلقائي' : `📁 خانة ${slot}`; }
+    function renderSaveSlots() {
+        const box = document.getElementById('saveSlots');
+        const inGame = state.running;
+        box.innerHTML = '';
+        SAVE_SLOTS.forEach(slot => {
+            const data = readSlot(slot);
+            const row = document.createElement('div');
+            row.className = 'bg-black/40 border border-amber-800/60 rounded-lg p-2';
+            row.innerHTML = `<div class="font-bold text-amber-300 text-sm mb-0.5">${slotLabel(slot)}</div>
+                <div class="text-[11px] text-amber-100/90 mb-1.5">${describeSave(data)}</div>
+                <div class="flex gap-1.5">
+                    ${slot !== 'auto' ? `<button type="button" data-act="save" class="aoe-btn flex-1 py-1.5 rounded text-xs font-bold text-emerald-300" ${inGame ? '' : 'disabled'}>💾 حفظ</button>` : ''}
+                    <button type="button" data-act="load" class="aoe-btn flex-1 py-1.5 rounded text-xs font-bold text-sky-300" ${data ? '' : 'disabled'}>📂 تحميل</button>
+                    <button type="button" data-act="del" class="aoe-btn py-1.5 px-3 rounded text-xs font-bold text-red-300" ${data ? '' : 'disabled'}>🗑️</button>
+                </div>`;
+            row.querySelector('[data-act="save"]')?.addEventListener('click', () => { saveToSlot(slot); renderSaveSlots(); });
+            row.querySelector('[data-act="load"]').addEventListener('click', () => loadFromSlot(slot));
+            row.querySelector('[data-act="del"]').addEventListener('click', () => {
+                try { localStorage.removeItem(slotKey(slot)); } catch (e) {}
+                renderSaveSlots();
+            });
+            box.appendChild(row);
+        });
+    }
+    let pausedBeforeModal = false;
+    function openSaveModal() {
+        pausedBeforeModal = state.paused;
+        if (state.running) state.paused = true;
+        renderSaveSlots();
+        document.getElementById('saveModal').classList.remove('hidden');
+    }
+    function closeSaveModal() {
+        document.getElementById('saveModal').classList.add('hidden');
+        if (state.running) state.paused = pausedBeforeModal;
+    }
+    function setupSaveSystem() {
+        document.getElementById('saveMenuBtn').addEventListener('click', openSaveModal);
+        document.getElementById('loadFromMenuBtn').addEventListener('click', openSaveModal);
+        document.getElementById('saveCloseBtn').addEventListener('click', closeSaveModal);
+        document.getElementById('exportSaveBtn').addEventListener('click', () => {
+            if (!state.running) { showToast('لا توجد معركة جارية', 'red'); return; }
+            const code = btoa(unescape(encodeURIComponent(JSON.stringify(buildSaveData()))));
+            const input = document.getElementById('importSaveInput');
+            input.value = code;
+            try { navigator.clipboard.writeText(code); } catch (e) {}
+            input.select();
+        });
+        document.getElementById('importSaveBtn').addEventListener('click', () => {
+            try {
+                const code = document.getElementById('importSaveInput').value.trim();
+                applySaveData(JSON.parse(decodeURIComponent(escape(atob(code)))));
+                showToast('📂 تم الاستيراد', 'green');
+            } catch (e) { showToast('كود الحفظ غير صالح', 'red'); }
+        });
+        // حفظ تلقائي كل 60 ثانية + عند مغادرة التطبيق
+        setInterval(() => {
+            if (state.running && !state.paused && document.getElementById('autoSaveChk').checked) saveToSlot('auto', true);
+        }, 60000);
+        const autoOnLeave = () => { if (state.running && document.getElementById('autoSaveChk').checked) saveToSlot('auto', true); };
+        document.addEventListener('visibilitychange', () => { if (document.hidden) autoOnLeave(); });
+        window.addEventListener('pagehide', autoOnLeave);
+    }
+
+    setupSaveSystem();
+    setupStartMenu();
+});
+</script>
+</body>
+</html>
